@@ -1,108 +1,87 @@
 #!/bin/bash
+
+# Очистка кэша пакетов APT
+clean_apt_cache() {
+	echo -e "\n=== cache deb ===";
+	echo -e "\nContinue clear (y/n)?";
+	read CONT
+	if [ "$CONT" = "y" ]; then
+		sudo apt-get autoclean
+		sudo apt-get autoremove
+		sudo apt-get clean
+	fi
+}
+
+# Очистка системных логов и логов сессии
+clean_logs() {
+	echo -e "\n=== log list ===";
+
+	CUR_USER=$(whoami)
+	LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.gz" -o -name "*.log" -o -name "*.old" )
+
+	echo -e "\nscan /home/$CUR_USER/";
+	find "/home/$CUR_USER/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \)
+
+	echo -e "\nscan /var/log/";
+	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \)
+
+	echo -e "\nContinue clear (y/n)?";
+	read CONT
+	if [ "$CONT" = "y" ]; then
+		echo -e "\nclear /home/$CUR_USER/";
+		find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors'  -delete
+		find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors.old' -delete
+
+		echo -e "\nclear /var/log/";
+		# Очистка системного журнала (journald)
+		sudo journalctl --vacuum-time=1s
+
+		sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \) -delete
+	fi
+}
+
+# Рекурсивное удаление пользовательского кэша
+clean_user_cache() {
+	echo -e "\n=== cache list ===";
+	CUR_USER=$(whoami)
+
+	echo -e "\nscan /home/$CUR_USER/.cache/";
+	find "/home/$CUR_USER/.cache/" -mindepth 1 -maxdepth 1 -name '*'
+
+	echo -e "\nContinue clear (y/n)?";
+	read CONT
+	if [ "$CONT" = "y" ]; then
+		echo -e "\nclear /home/$CUR_USER/.cache/";
+		find "/home/$CUR_USER/.cache/" -mindepth 1 -delete
+	fi
+}
+
+# Удаление истории команд суперпользователя
+clean_root_history() {
+	echo -e "\n=== root history ==="
+	echo "/root/.history"
+	echo "/root/.bash_history"
+
+	echo -e "\nContinue clear (y/n)?";
+	read CONT
+	if [ "$CONT" = "y" ]; then
+		sudo rm -f /root/.history /root/.bash_history
+	fi
+}
+
 echo 'Hello '$(whoami);
 echo 'plese enter sudo password...';
-sudo sleep 1
-#=============================================
-echo "\n=== cache deb ===";
-echo "\nContinue clear (y/n)?";
-read CONT
-if [ "$CONT" = "y" ]; then
 
-echo '\nplese enter sudo password...';
-sudo sleep 1
-sudo apt-get autoclean
-sudo apt-get autoremove
-sudo apt-get clean
-
-fi
-#=============================================
-#echo "\n=== old kernel ===";
-#echo 'latest: '$(uname -r)'\n';
-
-#echo 'old: ';
-#sudo dpkg -l linux-{image,headers,hwe,modules}-* | awk '/^ii/{print $2}' | egrep '[0-9]+\.[0-9]+\.[0-9]+' | grep -v $(uname -r | cut -d- -f-2)
-
-#echo "\nContinue clear (y/n)?";
-#read CONT
-#if [ "$CONT" = "y" ]; then
-
-#echo '\nplese enter sudo password...';
-#sudo sleep 1
-#sudo dpkg -l linux-{image,headers,hwe,modules}-* | awk '/^ii/{print $2}' | egrep '[0-9]+\.[0-9]+\.[0-9]+' | grep -v $(uname -r | cut -d- -f-2) | xargs sudo dpkg --purge
-
-#fi
-#=============================================
-echo "\n=== log list ===";
-
-cd '/home/'$(whoami)'/';
-echo '\nscan /home/'$(whoami)'/';
-find -maxdepth 1 -name '.xsession-errors'
-find -maxdepth 1 -name '.xsession-errors.old'
-
-cd "/var/log/";
-echo "\nscan /var/log/";
-sudo find -name '*.0'
-sudo find -name '*.1'
-sudo find -name '*.gz'
-sudo find -name '*.log'
-sudo find -name '*.old'
-sudo find -name '*.txt'
-sudo find -name '*.journal'
-sudo find -name '*.journal~'
-
-echo "\nContinue clear (y/n)?";
-read CONT
-if [ "$CONT" = "y" ]; then
-
-cd '/home/'$(whoami)'/';
-echo '\nclear /home/'$(whoami)'/';
-find -maxdepth 1 -name '.xsession-errors' -delete
-find -maxdepth 1 -name '.xsession-errors.old' -delete
-
-cd "/var/log/";
-echo "\nclear /var/log/";
-echo '\nplese enter sudo password...';
-sudo sleep 1
-sudo find -name '*.0' -delete
-sudo find -name '*.1' -delete
-sudo find -name '*.gz' -delete
-sudo find -name '*.log' -delete
-sudo find -name '*.old' -delete
-sudo find -name '*.txt' -delete
-sudo find -name '*.journal' -delete
-sudo find -name '*.journal~' -delete
-
-fi
-#=============================================
-echo "\n=== cache list ===";
-
-cd '/home/'$(whoami)'/.cache/';
-echo '\nscan /home/'$(whoami)'/.cache/';
-find -name '*'
-
-echo "\nContinue clear (y/n)?";
-read CONT
-if [ "$CONT" = "y" ]; then
-
-cd '/home/'$(whoami)'/.cache/';
-echo '\nclear /home/'$(whoami)'/.cache/';
-find -name '*' -delete
-
+if sudo -v; then
+	clean_apt_cache
+	clean_logs
+	clean_user_cache
+	clean_root_history
+else
+	echo "No password"
 fi
 
-#=============================================
-echo "\n=== root history ===";
-echo "/root/.history";
-echo "/root/.bash_history";
-
-echo "\nContinue clear (y/n)?";
-read CONT
-if [ "$CONT" = "y" ]; then
-sudo rm -f /root/.history /root/.bash_history
-
-fi
-#=============================================
 sudo -k
-echo "\n=== Cleared ===";
+echo -e "\n=== Cleared ===";
 echo "Press any key to continue..."
 read -n 1 -s

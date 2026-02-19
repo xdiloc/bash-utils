@@ -1,23 +1,32 @@
 #!/bin/bash
 
+# Подтверждение действия пользователем
+confirm_action() {
+	echo -e "\nContinue (y/n)?"
+	read -r -n 1 CONT
+	if [ "$CONT" = "y" ] || [ "$CONT" = "Y" ]; then
+		return 0
+	else
+		echo -e "\nCancelled"
+		return 1
+	fi
+}
+
 # Очистка кэша пакетов APT
 clean_apt_cache() {
 	echo -e "\n=== cache deb ===";
-	echo -e "\nContinue clear (y/n)?";
-	read CONT
-	if [ "$CONT" = "y" ]; then
-		sudo apt-get autoclean
-		sudo apt-get autoremove
-		sudo apt-get clean
-	fi
+	confirm_action || return
+	sudo apt-get autoclean -y
+	sudo apt-get autoremove -y
+	sudo apt-get clean -y
 }
 
 # Очистка системных логов и логов сессии
 clean_logs() {
 	echo -e "\n=== log list ===";
 
-	CUR_USER=$(whoami)
-	LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.gz" -o -name "*.log" -o -name "*.old" )
+	CUR_USER=$(id -un)
+	LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.log" -o -name "*.old" )
 
 	echo -e "\nscan /home/$CUR_USER/";
 	find "/home/$CUR_USER/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \)
@@ -25,60 +34,83 @@ clean_logs() {
 	echo -e "\nscan /var/log/";
 	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \)
 
-	echo -e "\nContinue clear (y/n)?";
-	read CONT
-	if [ "$CONT" = "y" ]; then
-		echo -e "\nclear /home/$CUR_USER/";
-		find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors'  -delete
-		find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors.old' -delete
+	confirm_action || return
 
-		echo -e "\nclear /var/log/";
-		# Очистка системного журнала (journald)
-		sudo journalctl --vacuum-time=1s
+	echo -e "\nclear /home/$CUR_USER/";
+	find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors'  -delete
+	find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors.old' -delete
 
-		sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \) -delete
-	fi
+	echo -e "\nclear /var/log/";
+	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \) -delete
+}
+
+# Очистка журнала systemd
+clean_journal() {
+	echo -e "\n=== journalctl ===";
+
+	echo -e "\nJournal usage:";
+	sudo journalctl --disk-usage
+
+	confirm_action || return
+
+	# Ротация логов, чтобы текущие логи стали архивными и подлежали удалению
+	sudo journalctl --rotate
+	# Очистка всех архивных логов старше 1 секунды
+	sudo journalctl --vacuum-time=1s
+
+	echo -e "\nJournal usage:";
+	sudo journalctl --disk-usage
 }
 
 # Рекурсивное удаление пользовательского кэша
 clean_user_cache() {
 	echo -e "\n=== cache list ===";
-	CUR_USER=$(whoami)
+	CUR_USER=$(id -un)
+	CACHE_DIR="/home/$CUR_USER/.cache"
 
-	echo -e "\nscan /home/$CUR_USER/.cache/";
-	find "/home/$CUR_USER/.cache/" -mindepth 1 -maxdepth 1 -name '*'
-
-	echo -e "\nContinue clear (y/n)?";
-	read CONT
-	if [ "$CONT" = "y" ]; then
-		echo -e "\nclear /home/$CUR_USER/.cache/";
-		find "/home/$CUR_USER/.cache/" -mindepth 1 -delete
+	if [ -z "$CACHE_DIR" ] || [ ! -d "$CACHE_DIR" ]; then
+		echo "Directory $CACHE_DIR not found."
+		return
 	fi
+
+	echo -e "\nscan $CACHE_DIR/";
+	find -- "$CACHE_DIR/" -mindepth 1 -maxdepth 1 -name '*'
+
+	confirm_action || return
+
+	echo -e "\nclear $CACHE_DIR/";
+	find -- "$CACHE_DIR/" -mindepth 1 -depth -delete
 }
 
 # Удаление истории команд суперпользователя
 clean_root_history() {
 	echo -e "\n=== root history ==="
-	echo "/root/.history"
-	echo "/root/.bash_history"
+	ROOT_DIR="/root"
 
-	echo -e "\nContinue clear (y/n)?";
-	read CONT
-	if [ "$CONT" = "y" ]; then
-		sudo rm -f /root/.history /root/.bash_history
+	if [ -z "$ROOT_DIR" ] || [ ! -d "$ROOT_DIR" ]; then
+		echo "Directory $ROOT_DIR not found."
+		return
 	fi
+
+	echo "$ROOT_DIR/.history"
+	echo "$ROOT_DIR/.bash_history"
+
+	confirm_action || return
+
+	sudo rm -f -- "$ROOT_DIR/.history" "$ROOT_DIR/.bash_history"
 }
 
-echo 'Hello '$(whoami);
+echo "Hello $(id -un)"
 echo 'plese enter sudo password...';
 
 if sudo -v; then
 	clean_apt_cache
 	clean_logs
+	clean_journal
 	clean_user_cache
 	clean_root_history
 else
-	echo "No password"
+	echo "no access..."
 fi
 
 sudo -k

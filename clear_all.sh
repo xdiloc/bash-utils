@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Проверяет существование директории перед выполнением действий
+check_directory() {
+	local dir_path="$1"
+	if [ -z "$dir_path" ] || [ ! -d "$dir_path" ]; then
+		echo "Directory $dir_path not found."
+		return 1
+	fi
+	return 0
+}
+
 # Подтверждение действия пользователем
 confirm_action() {
 	echo -e "\nContinue (y/n)?"
@@ -37,8 +47,7 @@ clean_logs() {
 	confirm_action || return
 
 	echo -e "\nclear /home/$CUR_USER/";
-	find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors'  -delete
-	find "/home/$CUR_USER/" -maxdepth 1 -name '.xsession-errors.old' -delete
+	find "/home/$CUR_USER/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \) -delete
 
 	echo -e "\nclear /var/log/";
 	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \) -delete
@@ -68,10 +77,7 @@ clean_user_cache() {
 	CUR_USER=$(id -un)
 	CACHE_DIR="/home/$CUR_USER/.cache"
 
-	if [ -z "$CACHE_DIR" ] || [ ! -d "$CACHE_DIR" ]; then
-		echo "Directory $CACHE_DIR not found."
-		return
-	fi
+	check_directory "$CACHE_DIR" || return
 
 	echo -e "\nscan $CACHE_DIR/";
 	find -- "$CACHE_DIR/" -mindepth 1 -maxdepth 1 -name '*'
@@ -87,10 +93,7 @@ clean_root_history() {
 	echo -e "\n=== root history ==="
 	ROOT_DIR="/root"
 
-	if [ -z "$ROOT_DIR" ] || [ ! -d "$ROOT_DIR" ]; then
-		echo "Directory $ROOT_DIR not found."
-		return
-	fi
+	check_directory "$ROOT_DIR" || return
 
 	echo "$ROOT_DIR/.history"
 	echo "$ROOT_DIR/.bash_history"

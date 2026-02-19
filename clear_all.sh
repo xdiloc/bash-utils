@@ -12,14 +12,13 @@ check_directory() {
 
 # Подтверждение действия пользователем
 confirm_action() {
-	echo -e "\nContinue (y/n)?"
-	read -r -n 1 CONT
-	if [ "$CONT" = "y" ] || [ "$CONT" = "Y" ]; then
+	local CONT
+	read -p "Continue (y/n)? " CONT
+	if [[ "$CONT" =~ ^[yY]$ ]]; then
 		return 0
-	else
-		echo -e "\nCancelled"
-		return 1
 	fi
+	echo "Cancelled"
+	return 1
 }
 
 # Очистка кэша пакетов APT
@@ -35,22 +34,25 @@ clean_apt_cache() {
 clean_logs() {
 	echo -e "\n=== log list ===";
 
-	CUR_USER=$(id -un)
-	LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.log" -o -name "*.old" )
+	local LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.old" )
 
-	echo -e "\nscan /home/$CUR_USER/";
-	find "/home/$CUR_USER/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \)
+	echo -e "\nscan $HOME/";
+	find "$HOME/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \)
 
 	echo -e "\nscan /var/log/";
-	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \)
+	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" -o -name "*.log" \)
 
 	confirm_action || return
 
-	echo -e "\nclear /home/$CUR_USER/";
-	find "/home/$CUR_USER/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \) -delete
+	echo -e "\nclear $HOME/";
+	# Обнуление пользовательских логов сессии без удаления файлов
+	find "$HOME/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \) -delete
 
 	echo -e "\nclear /var/log/";
+	# Удаление архивных и сжатых логов
 	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \) -delete
+	# Обнуление активных .log файлов
+	sudo find /var/log/ -type f -name "*.log" -exec truncate -s 0 -- {} +
 }
 
 # Очистка журнала systemd
@@ -64,8 +66,8 @@ clean_journal() {
 
 	# Ротация логов, чтобы текущие логи стали архивными и подлежали удалению
 	sudo journalctl --rotate
-	# Очистка всех архивных логов старше 1 секунды
-	sudo journalctl --vacuum-time=1s
+	# Очистка архивных логов
+	sudo journalctl --vacuum-time=5m
 
 	echo -e "\nJournal usage:";
 	sudo journalctl --disk-usage
@@ -74,8 +76,7 @@ clean_journal() {
 # Рекурсивное удаление пользовательского кэша
 clean_user_cache() {
 	echo -e "\n=== cache list ===";
-	CUR_USER=$(id -un)
-	CACHE_DIR="/home/$CUR_USER/.cache"
+	local CACHE_DIR="$HOME/.cache"
 
 	check_directory "$CACHE_DIR" || return
 
@@ -88,10 +89,10 @@ clean_user_cache() {
 	find -- "$CACHE_DIR/" -mindepth 1 -depth -delete
 }
 
-# Удаление истории команд суперпользователя
+# Очищает файлы истории команд root.
 clean_root_history() {
 	echo -e "\n=== root history ==="
-	ROOT_DIR="/root"
+	local ROOT_DIR="/root"
 
 	check_directory "$ROOT_DIR" || return
 
@@ -100,10 +101,13 @@ clean_root_history() {
 
 	confirm_action || return
 
-	sudo rm -f -- "$ROOT_DIR/.history" "$ROOT_DIR/.bash_history"
+	# Использует truncate для обнуления.
+	[ -f "$ROOT_DIR/.history" ] && sudo truncate -s 0 -- "$ROOT_DIR/.history"
+	[ -f "$ROOT_DIR/.bash_history" ] && sudo truncate -s 0 -- "$ROOT_DIR/.bash_history"
 }
 
-echo "Hello $(id -un)"
+echo "User: $(id -un)"
+echo "Home: $HOME"
 echo 'plese enter sudo password...';
 
 if sudo -v; then

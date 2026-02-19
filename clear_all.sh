@@ -3,11 +3,11 @@
 # Проверяет существование директории перед выполнением действий
 check_directory() {
 	local dir_path="$1"
-	if [ -z "$dir_path" ] || [ ! -d "$dir_path" ]; then
-		echo "Directory $dir_path not found."
-		return 1
+	if [ -n "$dir_path" ] && [ -d "$dir_path" ]; then
+		return 0
 	fi
-	return 0
+	echo "Directory $dir_path not found."
+	return 1
 }
 
 # Подтверждение действия пользователем

@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# Проверяет наличие прав sudo
+check_sudo() {
+	if sudo -v; then
+		return 0
+	fi
+	echo "No sudo access..."
+	return 1
+}
+
 # Проверяет существование директории перед выполнением действий
 check_directory() {
 	local dir_path="$1"
@@ -24,6 +33,7 @@ confirm_action() {
 # Очистка кэша пакетов APT
 clean_apt_cache() {
 	echo -e "\n=== cache deb ===";
+	check_sudo || return
 	confirm_action || return
 	sudo apt-get autoclean -y
 	sudo apt-get autoremove -y
@@ -33,6 +43,7 @@ clean_apt_cache() {
 # Очистка системных логов и логов сессии
 clean_logs() {
 	echo -e "\n=== log list ===";
+	check_sudo || return
 
 	local LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.old" )
 
@@ -58,6 +69,7 @@ clean_logs() {
 # Очистка журнала systemd
 clean_journal() {
 	echo -e "\n=== journalctl ===";
+	check_sudo || return
 
 	echo -e "\nJournal usage:";
 	sudo journalctl --disk-usage
@@ -92,8 +104,9 @@ clean_user_cache() {
 # Очищает файлы истории команд root.
 clean_root_history() {
 	echo -e "\n=== root history ==="
-	local ROOT_DIR="/root"
+	check_sudo || return
 
+	local ROOT_DIR="/root"
 	check_directory "$ROOT_DIR" || return
 
 	echo "$ROOT_DIR/.history"
@@ -110,14 +123,12 @@ echo "User: $(id -un)"
 echo "Home: $HOME"
 echo 'plese enter sudo password...';
 
-if sudo -v; then
+if check_sudo; then
 	clean_apt_cache
 	clean_logs
 	clean_journal
 	clean_user_cache
 	clean_root_history
-else
-	echo "no access..."
 fi
 
 sudo -k

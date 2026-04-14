@@ -47,7 +47,8 @@ saved_data() {
 	# Show current saved snap data
 	echo -e "\n--- Snap Saved Data for Reference ---"
 	if snap saved; then
-		echo "Для удаления устаревших сохраненных данных используйте команду: snap forget <snap_name> --revision=<revision>"
+		echo "snap saved - Show list of saved snapshots"
+		echo "snap forget id - Delete snapshot"
 	else
 		echo "Could not retrieve snap saved data. Is it supported on this snapd version?"
 	fi

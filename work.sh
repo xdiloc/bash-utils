@@ -49,31 +49,36 @@ view_logs() {
 
 # @brief Редактирование unit-файла сервиса
 edit_unit() {
-	if command -v micro >/dev/null 2>&1; then
-		sudo micro /etc/systemd/system/"$SERVICE".service
-
-		# Запрос на применение изменений
-		echo -e "\nПрименить изменения (выполнить daemon-reload)? [y/N]"
-		read -n 1 -r confirm
-
-		if [[ $confirm =~ ^[Yy]$ ]]; then
-			sudo systemctl daemon-reload
-			echo "daemon-reload выполнен успешно."
-		fi
-	else
+	if ! command -v micro >/dev/null 2>&1; then
 		echo -e "${RED}Ошибка: редактор micro не найден в системе.${NC}"
+		return
+	fi
+
+	sudo micro /etc/systemd/system/"$SERVICE".service
+
+	# Запрос на применение изменений
+	echo "Выполнить 'systemctl daemon-reload' для обновления конфигурации? [y/N]"
+	read -n 1 -r confirm
+	printf "\n"
+
+	if [[ $confirm =~ ^[Yy]$ ]]; then
+		sudo systemctl daemon-reload
+		echo "daemon-reload выполнен успешно."
 	fi
 }
 
 check_status
-echo -e "\nВыберите действие:"
+printf "\n"
+echo "Выберите действие:"
 echo "1) Запустить"
 echo "2) Остановить"
 echo "3) Перезапустить"
 echo "4) Смотреть логи"
 echo "5) Редактировать unit-файл"
 echo "0) Выход"
+printf "\n"
 read -p "Введите цифру: " choice
+printf "\n"
 
 case $choice in
 	1)
@@ -100,3 +105,4 @@ case $choice in
 esac
 
 read -n 1 -s -r -p "Нажмите любую клавишу для выхода..."
+printf "\n"

@@ -95,6 +95,19 @@ edit_unit() {
 	fi
 }
 
+# @brief Создание бекапа текущего unit-файла
+backup_unit() {
+	check_exists
+	local backup_dir="backup/$SERVICE"
+
+	if [ ! -d "$backup_dir" ]; then
+		mkdir -p "$backup_dir"
+	fi
+
+	cp /etc/systemd/system/"$SERVICE".service "$backup_dir/unit_$(date +%Y%m%d_%H%M%S)"
+	echo "Бекап $SERVICE создан в $backup_dir"
+}
+
 check_status
 printf "\n"
 echo "Выберите действие:"
@@ -103,6 +116,7 @@ echo "2) Остановить"
 echo "3) Перезапустить"
 echo "4) Смотреть логи"
 echo "5) Редактировать unit-файл"
+echo "6) Создать резервную копию"
 echo "0) Выход"
 printf "\n"
 read -p "Введите цифру: " choice
@@ -123,6 +137,9 @@ case $choice in
 		;;
 	5)
 		edit_unit
+		;;
+	6)
+		backup_unit
 		;;
 	0)
 		exit 0

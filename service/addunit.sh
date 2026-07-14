@@ -27,6 +27,6 @@ cat <<EOF > "$TARGET_FILE"
 EOF
 
 # Установка прав на исполнение
-chmod 755 "$TARGET_FILE"
+chmod +x "$TARGET_FILE"
 
 echo "Файл $TARGET_FILE успешно создан для сервиса $SERVICE_NAME."

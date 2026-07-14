@@ -32,7 +32,7 @@ check_status() {
 
 # @brief Проверка существования юнита
 check_exists() {
-	if ! systemctl status "$SERVICE.service" >/dev/null 2>&1; then
+	if ! systemctl list-unit-files "$SERVICE.service" | grep -q "$SERVICE.service"; then
 		echo -e "${RED}Ошибка: сервис $SERVICE не найден в системе.${NC}"
 		exit 1
 	fi

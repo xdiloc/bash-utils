@@ -66,6 +66,12 @@ edit_unit() {
 
 	sudo $EDITOR /etc/systemd/system/"$SERVICE".service
 
+	echo "Проверка конфигурации..."
+	if ! sudo systemd-analyze verify /etc/systemd/system/"$SERVICE".service >/dev/null 2>&1; then
+		echo -e "${RED}Ошибка в конфигурации. Исправьте файл перед применением.${NC}"
+		return
+	fi
+
 	# Запрос на применение изменений
 	echo "Выполнить 'systemctl daemon-reload' для обновления конфигурации? [y/N]"
 	read -n 1 -r confirm

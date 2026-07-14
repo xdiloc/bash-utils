@@ -69,6 +69,19 @@ view_logs() {
 	printf "\n"
 }
 
+# @brief Проверка конфигурации юнита
+# Возвращает 0 если успешно, 1 если ошибка
+verify_unit() {
+	check_exists
+	echo "Проверка конфигурации..."
+	if ! sudo systemd-analyze verify /etc/systemd/system/"$SERVICE".service >/dev/null 2>&1; then
+		echo -e "${RED}Ошибка в конфигурации. Исправьте файл перед применением.${NC}"
+		return 1
+	fi
+	echo -e "${GREEN}Конфигурация корректна.${NC}"
+	return 0
+}
+
 # @brief Редактирование unit-файла сервиса
 edit_unit() {
 	if ! command -v "$EDITOR" >/dev/null 2>&1; then
@@ -78,9 +91,8 @@ edit_unit() {
 
 	sudo $EDITOR /etc/systemd/system/"$SERVICE".service
 
-	echo "Проверка конфигурации..."
-	if ! sudo systemd-analyze verify /etc/systemd/system/"$SERVICE".service >/dev/null 2>&1; then
-		echo -e "${RED}Ошибка в конфигурации. Исправьте файл перед применением.${NC}"
+	# Если проверка не пройдена, завершаем работу функции
+	if ! verify_unit; then
 		return
 	fi
 
@@ -108,6 +120,12 @@ backup_unit() {
 	echo "Бекап $SERVICE создан в $backup_dir"
 }
 
+# @brief Просмотр зависимостей сервиса
+show_deps() {
+	check_exists
+	systemctl list-dependencies --no-pager "$SERVICE"
+}
+
 check_status
 printf "\n"
 echo "Выберите действие:"
@@ -116,7 +134,9 @@ echo "2) Остановить"
 echo "3) Перезапустить"
 echo "4) Смотреть логи"
 echo "5) Редактировать unit-файл"
-echo "6) Создать резервную копию"
+echo "6) Проверить конфигурацию"
+echo "7) Создать резервную копию"
+echo "8) Показать зависимости (dependencies)"
 echo "0) Выход"
 printf "\n"
 read -p "Введите цифру: " choice
@@ -139,7 +159,13 @@ case $choice in
 		edit_unit
 		;;
 	6)
+		verify_unit
+		;;
+	7)
 		backup_unit
+		;;
+	8)
+		show_deps
 		;;
 	0)
 		exit 0

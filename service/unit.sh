@@ -54,6 +54,7 @@ restart_service() {
 view_logs() {
 	echo "Просмотр логов (нажмите Ctrl + C для выхода)..."
 	sudo journalctl -u "$SERVICE" -f
+	printf "\n"
 }
 
 # @brief Редактирование unit-файла сервиса

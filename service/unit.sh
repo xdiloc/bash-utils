@@ -30,28 +30,40 @@ check_status() {
 	fi
 }
 
+# @brief Проверка существования юнита
+check_exists() {
+	if ! systemctl status "$SERVICE.service" >/dev/null 2>&1; then
+		echo -e "${RED}Ошибка: сервис $SERVICE не найден в системе.${NC}"
+		exit 1
+	fi
+}
+
 # @brief Запуск сервиса
 start_service() {
+	check_exists
 	sudo systemctl start "$SERVICE"
 	sudo systemctl enable "$SERVICE"
-	echo "Gateway: ON"
+	echo "$SERVICE: ON"
 }
 
 # @brief Остановка сервиса
 stop_service() {
+	check_exists
 	sudo systemctl stop "$SERVICE"
 	sudo systemctl disable "$SERVICE"
-	echo "Gateway: OFF"
+	echo "$SERVICE: OFF"
 }
 
 # @brief Перезапуск сервиса
 restart_service() {
+	check_exists
 	sudo systemctl restart "$SERVICE"
-	echo "Gateway: Restarted"
+	echo "$SERVICE: Restarted"
 }
 
 # @brief Просмотр логов сервиса
 view_logs() {
+	check_exists
 	echo "Просмотр логов (нажмите Ctrl + C для выхода)..."
 	sudo journalctl -u "$SERVICE" -f
 	printf "\n"

@@ -30,11 +30,23 @@ check_status() {
 	fi
 }
 
-# @brief Проверка существования юнита
+# @brief Проверка существования юнита в системе
 check_exists() {
-	if ! systemctl list-unit-files "$SERVICE.service" | grep -q "$SERVICE.service"; then
+	if [[ "$(systemctl show -p LoadState --value "$SERVICE.service")" != "loaded" ]]; then
 		echo -e "${RED}Ошибка: сервис $SERVICE не найден в системе.${NC}"
 		exit 1
+	fi
+}
+
+# @brief Определение пути к файлу (существующему или новому)
+resolve_path() {
+	local path
+	path=$(systemctl show -p FragmentPath --value "$SERVICE.service")
+	if [[ -z "$path" ]]; then
+		# Если файла нет, предлагаем путь по умолчанию
+		UNIT_PATH="/etc/systemd/system/$SERVICE.service"
+	else
+		UNIT_PATH="$path"
 	fi
 }
 
@@ -72,9 +84,9 @@ view_logs() {
 # @brief Проверка конфигурации юнита
 # Возвращает 0 если успешно, 1 если ошибка
 verify_unit() {
-	check_exists
+	resolve_path
 	echo "Проверка конфигурации..."
-	if ! sudo systemd-analyze verify /etc/systemd/system/"$SERVICE".service >/dev/null 2>&1; then
+	if ! sudo systemd-analyze verify "$UNIT_PATH" >/dev/null 2>&1; then
 		echo -e "${RED}Ошибка в конфигурации. Исправьте файл перед применением.${NC}"
 		return 1
 	fi
@@ -84,12 +96,13 @@ verify_unit() {
 
 # @brief Редактирование unit-файла сервиса
 edit_unit() {
+	resolve_path
 	if ! command -v "$EDITOR" >/dev/null 2>&1; then
 		echo -e "${RED}Ошибка: редактор $EDITOR не найден в системе.${NC}"
 		return
 	fi
 
-	sudo $EDITOR /etc/systemd/system/"$SERVICE".service
+	sudo $EDITOR "$UNIT_PATH"
 
 	# Если проверка не пройдена, завершаем работу функции
 	if ! verify_unit; then
@@ -110,13 +123,14 @@ edit_unit() {
 # @brief Создание бекапа текущего unit-файла
 backup_unit() {
 	check_exists
+	resolve_path
 	local backup_dir="backup/$SERVICE"
 
 	if [ ! -d "$backup_dir" ]; then
 		mkdir -p "$backup_dir"
 	fi
 
-	cp /etc/systemd/system/"$SERVICE".service "$backup_dir/unit_$(date +%Y%m%d_%H%M%S)"
+	cp "$UNIT_PATH" "$backup_dir/unit_$(date +%Y%m%d_%H%M%S)"
 	echo "Бекап $SERVICE создан в $backup_dir"
 }
 

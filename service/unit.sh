@@ -3,6 +3,7 @@
 # @brief Переключатель состояния сервиса
 # SERVICE - имя юнита systemd
 # EDITOR - редактор для изменения unit-файла (vim nano micro)
+# systemctl list-unit-files --type=service --all --no-pager
 
 SERVICE="$1"
 EDITOR="micro"

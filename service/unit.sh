@@ -77,8 +77,33 @@ restart_service() {
 # @brief Просмотр логов сервиса
 view_logs() {
 	check_exists
-	echo "Просмотр логов (нажмите Ctrl + C для выхода)..."
-	sudo journalctl -u "$SERVICE" -f
+	echo "Выберите режим просмотра логов:"
+	echo "1) В реальном времени (-f)"
+	echo "2) Последние 100 записей (-n 100)"
+	echo "3) Поиск по логам (-g)"
+	printf "\n"
+	read -p "Введите цифру: " log_choice
+	printf "\n"
+
+	case $log_choice in
+		1)
+			echo "Просмотр логов (нажмите Ctrl + C для выхода)..."
+			sudo journalctl -u "$SERVICE" -f
+			;;
+		2)
+			echo "Последние 100 записей:"
+			sudo journalctl -u "$SERVICE" -n 100 --no-pager
+			;;
+		3)
+			read -p "Введите паттерн для поиска: " search_term
+			echo "Результаты поиска для '$search_term':"
+			sudo journalctl -u "$SERVICE" --no-pager -g "$search_term"
+			;;
+		*)
+			echo -e "${RED}Ошибка: неверный выбор${NC}"
+			return
+			;;
+	esac
 	printf "\n"
 }
 

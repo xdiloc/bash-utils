@@ -29,18 +29,14 @@ download_file() {
 	local output_path="$2"
 	local curl_flags="$3"
 	local description="$4"
-	
-	if [ "$curl_flags" = "--progress-bar" ]; then
-		echo "$description"
-	else
-		echo -n "$description "
-	fi
+
+	echo "$description"
 
 	if curl $curl_flags --location --output "$output_path" "$download_url"; then
-		echo -e "${GREEN}[OK]${RESET}"
+		echo -e "Статус загрузки: ${GREEN}[OK]${RESET}"
 		return 0
 	else
-		echo -e "${RED}[FAIL]${RESET}"
+		echo -e "Статус загрузки: ${RED}[FAIL]${RESET}"
 		return 1
 	fi
 }
@@ -63,8 +59,7 @@ ensure_gpg_key() {
 	local server_is_available=false
 
 	echo "Проверка доступности ключа $key_fingerprint"
-	
-	# ПЕРВЫЙ ПРОХОД: Проверяем доступность (список берется из единого массива GPG_SERVERS)
+
 	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "  -> Проверка на $server ... "
 		local http_status_code
@@ -86,8 +81,7 @@ ensure_gpg_key() {
 	fi
 
 	echo " Ключ отсутствует локально. Запуск загрузки через curl:"
-	
-	# ВТОРОЙ ПРОХОД: Скачивание (используется тот же самый массив GPG_SERVERS без дублирования URL-адресов)
+
 	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "   -> Загрузка с сервера: $server ... "
 		if curl --silent "${server}/pks/lookup?op=get&search=0x${search_query}" | gpg --import >/dev/null 2>&1; then
@@ -123,7 +117,7 @@ verify_checksum() {
 	local target_directory="$2"
 	local iso_base_name
 	iso_base_name=$(basename "$iso_file_path")
-	
+
 	echo -n "Файл $iso_base_name найден. Проверяем контрольную сумму... "
 	if (cd "$target_directory" && grep "$iso_base_name" SHA256SUMS | sha256sum --check --ignore-missing --status); then
 		echo -e "${GREEN}[OK]${RESET}"
@@ -224,6 +218,7 @@ select_and_download_iso() {
 	show_menu iso_images_list
 	local user_selection
 	read -r user_selection
+	echo ""
 
 	if ! [[ "$user_selection" =~ ^[0-9]+$ ]] || [ "$user_selection" -lt 1 ] || [ "$user_selection" -gt "$exit_option_number" ]; then
 		echo "Неверный выбор."
@@ -240,8 +235,8 @@ select_and_download_iso() {
 
 	create_iso_directory "$target_directory"
 
-	download_file "${base_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "--silent" "Загрузка файла контрольных сумм..."
-	download_file "${base_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "--silent" "Загрузка файла цифровой подписи..."
+	download_file "${base_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "--progress-bar" "Загрузка файла контрольных сумм..."
+	download_file "${base_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "--progress-bar" "Загрузка файла цифровой подписи..."
 
 	echo "Проверка наличия GPG-ключа..."
 	ensure_gpg_key "$target_directory"

@@ -6,85 +6,94 @@ GREEN="\033[32m"
 RESET="\033[0m"
 
 # @brief Создает целевую директорию для ISO-образов в домашней директории, если она не существует
-# p_dir - путь к создаваемой директории
+# target_directory - путь к создаваемой директории
 create_iso_directory() {
-	local p_dir="$1"
-	[ -d "$p_dir" ] && return 0
-	mkdir -p "$p_dir"
+	local target_directory="$1"
+	[ -d "$target_directory" ] && return 0
+	mkdir --parents "$target_directory"
 }
 
-# @brief Определяет имя актуального netinst ISO-образа Debian с удаленного сервера
-# p_url - URL страницы загрузки
-get_latest_iso_name() {
-	local p_url="$1"
-	local html_content
-	html_content=$(curl -sL "$p_url")
-	echo "$html_content" | grep -oP 'href="debian-[^"]+-amd64-netinst\.iso"' | head -n 1 | cut -d'"' -f2
+# @brief Универсальная функция для скачивания файлов через curl с выводом статуса
+# download_url - полный URL скачиваемого файла
+# output_path - путь для сохранения файла
+# description - описание загружаемого файла для вывода пользователю
+download_file() {
+	local download_url="$1"
+	local output_path="$2"
+	local description="$3"
+	echo -n "$description... "
+	if curl --silent --location --output "$output_path" "$download_url"; then
+		echo -e "${GREEN}[OK]${RESET}"
+		return 0
+	else
+		echo -e "${RED}[FAIL]${RESET}"
+		return 1
+	fi
 }
 
 # @brief Скачивает файл контрольных сумм с перезаписью через curl
-# p_url - базовый URL репозитория
-# p_dir - целевая директория
+# download_url - базовый URL репозитория
+# target_directory - целевая директория
 download_checksums() {
-	local p_url="$1"
-	local p_dir="$2"
-	curl -s -L -o "$p_dir/SHA256SUMS" "${p_url}/SHA256SUMS"
+	local download_url="$1"
+	local target_directory="$2"
+	download_file "${download_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "Загрузка файла контрольных сумм"
 }
 
 # @brief Скачивает файл цифровой подписи SHA256SUMS.sign с перезаписью через curl
-# p_url - базовый URL репозитория
-# p_dir - целевая директория
+# download_url - базовый URL репозитория
+# target_directory - целевая директория
 download_signature() {
-	local p_url="$1"
-	local p_dir="$2"
-	curl -s -L -o "$p_dir/SHA256SUMS.sign" "${p_url}/SHA256SUMS.sign"
+	local download_url="$1"
+	local target_directory="$2"
+	download_file "${download_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "Загрузка файла цифровой подписи"
 }
 
 # @brief Всегда проверяет доступность ключа на сервере и при необходимости импортирует его
-# p_dir - директория, где лежит SHA256SUMS.sign
+# target_directory - директория, где лежит SHA256SUMS.sign
 ensure_gpg_key() {
-	local p_dir="$1"
-	local key_id
-	local key_fpr
+	local target_directory="$1"
+	local key_identifier
+	local key_fingerprint
 
 	# Извлекаем чистый отпечаток и ID ключа, удаляя лишние символы и скобки
-	key_fpr=$(gpg --list-packets "$p_dir/SHA256SUMS.sign" 2>/dev/null | awk '/issuer fpr/{print $NF; exit}' | tr -cd 'A-Fa-f0-9')
-	key_id=$(gpg --list-packets "$p_dir/SHA256SUMS.sign" 2>/dev/null | awk '/keyid/{print $NF; exit}' | tr -cd 'A-Fa-f0-9')
+	key_fingerprint=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/issuer fpr/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
+	key_identifier=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/keyid/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
 
-	if [ -z "$key_id" ]; then
-		echo "Ошибка: не удалось извлечь ключ из SHA256SUMS.sign"
+	if [ -z "$key_fingerprint" ]; then
+		echo "Ошибка: не удалось извлечь отпечаток ключа из SHA256SUMS.sign"
 		return 1
 	fi
 
-	local search_query="${key_fpr:-$key_id}"
-	local server_available=false
+	local search_query="${key_fingerprint:-$key_identifier}"
+	local server_is_available=false
 
-	echo " Проверка доступности ключа $key_id на серверах:"
+	echo "Проверка доступности ключа $key_fingerprint"
 	for server in "https://keys.openpgp.org" "https://keyserver.ubuntu.com"; do
-		echo -n "   -> Проверка на $server ... "
-		local http_code
-		http_code=$(curl -o /dev/null -s -w "%{http_code}\n" "${server}/pks/lookup?op=index&search=0x${search_query}")
-		if [ "$http_code" -eq 200 ]; then
+		echo -n "  -> Проверка на $server ... "
+		local http_status_code
+		http_status_code=$(curl --output /dev/null --silent --write-out "%{http_code}\n" "${server}/pks/lookup?op=index&search=0x${search_query}")
+		if [ "$http_status_code" -eq 200 ]; then
 			echo -e "${GREEN}[OK]${RESET}"
-			server_available=true
+			server_is_available=true
 		else
-			echo -e "${RED}[FAIL]${RESET} (HTTP: $http_code)"
+			echo -e "${RED}[FAIL]${RESET} (HTTP: $http_status_code)"
 		fi
 	done
 
-	if [ "$server_available" = false ]; then
+	if [ "$server_is_available" = false ]; then
 		echo "Предупреждение: ключ не подтвержден ни на одном из серверов."
 	fi
 
-	if gpg --list-keys "$key_id" >/dev/null 2>&1; then
+	if gpg --list-keys "$key_fingerprint" >/dev/null 2>&1; then
 		return 0
 	fi
 
 	echo " Ключ отсутствует локально. Запуск загрузки через curl:"
 	for server in "https://keys.openpgp.org" "https://keyserver.ubuntu.com"; do
 		echo -n "   -> Загрузка с сервера: $server ... "
-		if curl -s "${server}/pks/lookup?op=get&search=0x${search_query}" | gpg --import >/dev/null 2>&1; then
-			if gpg --list-keys "$key_id" >/dev/null 2>&1; then
+		if curl --silent "${server}/pks/lookup?op=get&search=0x${search_query}" | gpg --import >/dev/null 2>&1; then
+			if gpg --list-keys "$key_fingerprint" >/dev/null 2>&1; then
 				echo -e "${GREEN}[OK]${RESET}"
 				return 0
 			fi
@@ -95,130 +104,199 @@ ensure_gpg_key() {
 }
 
 # @brief Проверяет GPG-подпись файла контрольных сумм
-# p_dir - директория, где лежат SHA256SUMS и SHA256SUMS.sign
+# target_directory - директория, где лежат SHA256SUMS и SHA256SUMS.sign
 verify_signature() {
-	local p_dir="$1"
-	(cd "$p_dir" && gpg --verify SHA256SUMS.sign SHA256SUMS)
+	local target_directory="$1"
+	echo -n "  -> Проверка подписи SHA256SUMS.sign ... "
+	if (cd "$target_directory" && gpg --verify SHA256SUMS.sign SHA256SUMS >/dev/null 2>&1); then
+		echo -e "${GREEN}[OK]${RESET}"
+		return 0
+	else
+		echo -e "${RED}[FAIL]${RESET}"
+		return 1
+	fi
 }
 
 # @brief Проверяет целостность существующего ISO-образа по SHA256
-# p_iso - полный путь к проверяемому файлу ISO
-# p_dir - директория, где лежит файл и SHA256SUMS
+# iso_file_path - полный путь к проверяемому файлу ISO
+# target_directory - директория, где лежит файл и SHA256SUMS
 verify_checksum() {
-	local p_iso="$1"
-	local p_dir="$2"
-	local iso_base
-	iso_base=$(basename "$p_iso")
-	(cd "$p_dir" && grep "$iso_base" SHA256SUMS | sha256sum --check --ignore-missing --status)
+	local iso_file_path="$1"
+	local target_directory="$2"
+	local iso_base_name
+	iso_base_name=$(basename "$iso_file_path")
+	
+	echo -n "Файл $iso_base_name найден. Проверяем контрольную сумму... "
+	if (cd "$target_directory" && grep "$iso_base_name" SHA256SUMS | sha256sum --check --ignore-missing --status); then
+		echo -e "${GREEN}[OK]${RESET}"
+		return 0
+	else
+		echo -e "${RED}[FAIL]${RESET}"
+		return 1
+	fi
 }
 
 # @brief Скачивает ISO-образ с отображением прогресс-бара через curl
-# p_url - базовый URL репозитория
-# p_iso - имя файла ISO-образа
-# p_dir - целевая директория
+# download_url - базовый URL репозитория
+# iso_filename - имя файла ISO-образа
+# target_directory - целевая директория
 download_iso() {
-	local p_url="$1"
-	local p_iso="$2"
-	local p_dir="$3"
-	curl -# -L -o "$p_dir/$p_iso" "${p_url}/${p_iso}"
+	local download_url="$1"
+	local iso_filename="$2"
+	local target_directory="$3"
+	echo "Скачивание выбранного ISO-образа ($iso_filename):"
+	if curl --progress-bar --location --output "$target_directory/$iso_filename" "${download_url}/${iso_filename}"; then
+		echo -e "Статус загрузки: ${GREEN}[OK]${RESET}"
+		return 0
+	else
+		echo -e "Статус загрузки: ${RED}[FAIL]${RESET}"
+		return 1
+	fi
 }
 
-# @brief Основная логика выполнения скрипта
-getdeb() {
-	local iso_dir="$HOME/iso"
-	local base_url="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
-	local iso_name
-	local iso_path
+# @brief Отображает меню выбора доступных ISO-файлов
+# iso_images_list - массив доступных образов
+show_menu() {
+	local -n images_reference="$1"
+	echo ""
+	echo "=== Доступные образы ==="
+	local index_counter=1
+	for iso_image in "${images_reference[@]}"; do
+		echo "$index_counter) $iso_image"
+		index_counter=$((index_counter + 1))
+	done
+	echo "$index_counter) Выход"
+	echo -n "Выберите пункт (1-$index_counter): "
+}
 
-	echo -n "Проверка и подготовка директории ($iso_dir)... "
-	create_iso_directory "$iso_dir"
+# @brief Отображает меню выбора архитектуры
+show_architecture_menu() {
+	echo "=== Выберите архитектуру ==="
+	echo "1) amd64"
+	echo "2) arm64"
+	echo "3) Выход"
+	echo -n "Выберите пункт (1-3): "
+}
+
+# @brief Выбирает архитектуру и возвращает её параметры через выходные переменные
+# out_arch_name - имя переменной для записи выбранной архитектуры
+# out_base_url - имя переменной для записи базового URL
+select_architecture() {
+	local -n out_arch_name="$1"
+	local -n out_base_url="$2"
+
+	show_architecture_menu
+	local architecture_selection
+	read -r architecture_selection
+
+	case "$architecture_selection" in
+		1)
+			out_arch_name="amd64"
+			out_base_url="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
+			return 0
+			;;
+		2)
+			out_arch_name="arm64"
+			out_base_url="https://cdimage.debian.org/debian-cd/current/arm64/iso-cd/"
+			return 0
+			;;
+		3)
+			return 1
+			;;
+		*)
+			echo "Неверный выбор."
+			return 1
+			;;
+	esac
+}
+
+# @brief Выводит список доступных ISO-файлов и обрабатывает выбор пользователя
+select_and_download_iso() {
+	local architecture_name=""
+	local base_url=""
+
+	if ! select_architecture architecture_name base_url; then
+		return 0
+	fi
+
+	local html_content
+	echo -n "Получение списка ISO-файлов с сервера... "
+	html_content=$(curl --silent --location "$base_url")
+	if [ -z "$html_content" ]; then
+		echo -e "${RED}[FAIL]${RESET}"
+		echo "Ошибка: не удалось получить данные с сервера."
+		return 1
+	fi
 	echo -e "${GREEN}[OK]${RESET}"
 
-	echo -n "Определение актуального релиза Debian... "
-	iso_name=$(get_latest_iso_name "$base_url")
+	local iso_images_list=()
+	while IFS= read -r iso_image; do
+		[ -n "$iso_image" ] && iso_images_list+=("$iso_image")
+	done < <(echo "$html_content" | grep --only-matching --perl-regexp 'class="indexcolname">\s*<a href="[^"]+\.iso">\K[^<]+' | awk '!seen[$0]++')
 
-	if [ -z "$iso_name" ]; then
-		echo -e "${RED}[FAIL]${RESET}"
-		echo "Ошибка: не удалось определить свежий релиз ISO."
+	if [ ${#iso_images_list[@]} -eq 0 ]; then
+		echo " ISO-файлы не найдены."
 		return 1
 	fi
-	echo -e "${GREEN}[OK]${RESET} ($iso_name)"
 
-	iso_path="$iso_dir/$iso_name"
+	local exit_option_number=$((${#iso_images_list[@]} + 1))
 
-	echo -n "Загрузка файла контрольных сумм... "
-	if ! download_checksums "$base_url" "$iso_dir"; then
-		echo -e "${RED}[FAIL]${RESET}"
+	show_menu iso_images_list
+	local user_selection
+	read -r user_selection
+
+	if ! [[ "$user_selection" =~ ^[0-9]+$ ]] || [ "$user_selection" -lt 1 ] || [ "$user_selection" -gt "$exit_option_number" ]; then
+		echo "Неверный выбор."
 		return 1
-	else
-		echo -e "${GREEN}[OK]${RESET}"
 	fi
 
-	echo -n "Загрузка файла цифровой подписи... "
-	if ! download_signature "$base_url" "$iso_dir"; then
-		echo -e "${RED}[FAIL]${RESET}"
-		return 1
-	else
-		echo -e "${GREEN}[OK]${RESET}"
+	if [ "$user_selection" -eq "$exit_option_number" ]; then
+		return 0
 	fi
+
+	local chosen_iso_image="${iso_images_list[$((user_selection - 1))]}"
+	local target_directory="$HOME/iso/$architecture_name"
+	local iso_file_path="$target_directory/$chosen_iso_image"
+
+	create_iso_directory "$target_directory"
+
+	download_checksums "$base_url" "$target_directory"
+	download_signature "$base_url" "$target_directory"
 
 	echo "Проверка наличия GPG-ключа..."
-	if ! ensure_gpg_key "$iso_dir"; then
-		echo -e "${RED}[FAIL]${RESET}"
-		echo "Ошибка: не удалось загрузить GPG-ключ Debian ни с одного из серверов."
-		return 1
-	fi
-	echo -e "Статус GPG-ключа: ${GREEN}[OK]${RESET}"
+	ensure_gpg_key "$target_directory"
 
 	echo "Проверка GPG-подписи файла контрольных сумм:"
-	if verify_signature "$iso_dir"; then
-		echo -e "Статус проверки подписи: ${GREEN}[OK]${RESET}"
-	else
-		echo -e "${RED}[FAIL]${RESET}"
-		echo "Ошибка: цифровая подпись SHA256SUMS.sign недействительна!"
-		return 1
-	fi
+	verify_signature "$target_directory"
 
 	echo "Проверка наличия и целостности локального образа..."
-	if [ ! -f "$iso_path" ]; then
+	if [ ! -f "$iso_file_path" ]; then
 		echo "Локальный образ не найден."
 	else
-		echo -n "Файл $iso_name найден. Проверяем контрольную сумму... "
-		if verify_checksum "$iso_path" "$iso_dir"; then
-			echo -e "${GREEN}[OK]${RESET}"
+		if verify_checksum "$iso_file_path" "$target_directory"; then
 			echo "Образ уже существует и его контрольная сумма корректна."
-			echo "Загрузка не требуется. Работа завершена успешно."
 			return 0
 		fi
-		echo -e "${RED}[FAIL]${RESET}"
 		echo "Контрольная сумма не совпала. Перекачиваем файл..."
 	fi
 
-	echo "Скачивание свежего ISO-образа:"
-	if ! download_iso "$base_url" "$iso_name" "$iso_dir"; then
-		echo -e "${RED}[FAIL]${RESET}"
+	if ! download_iso "$base_url" "$chosen_iso_image" "$target_directory"; then
 		return 1
 	fi
-	echo -e "Статус загрузки: ${GREEN}[OK]${RESET}"
 
-	echo -n "Финальная проверка контрольной суммы... "
-	if verify_checksum "$iso_path" "$iso_dir"; then
-		echo -e "${GREEN}[OK]${RESET}"
+	echo "Финальная проверка контрольной суммы:"
+	if verify_checksum "$iso_file_path" "$target_directory"; then
 		echo "Загрузка завершена успешно, контрольная сумма совпадает."
-		return 0
+	else
+		echo "Ошибка: контрольная сумма скачанного файла не совпадает!"
 	fi
-	echo -e "${RED}[FAIL]${RESET}"
-	echo "Ошибка: контрольная сумма скачанного файла не совпадает!"
-	return 1
 }
 
 # @brief Ожидание нажатия клавиши для продолжения
-# Ожидание ввода пользователя перед выходом
 wait_for_key() {
 	echo "Нажмите любую клавишу для продолжения..."
 	read -n 1 -s < /dev/tty
 }
 
-getdeb
-# Ожидание ввода пользователя перед выходом
+select_and_download_iso
 wait_for_key

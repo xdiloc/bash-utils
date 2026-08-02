@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Определяем список серверов в одном месте (нет дублирования списка)
+GPG_SERVERS=(
+	"https://keys.openpgp.org"
+	"https://keyserver.ubuntu.com"
+)
+
 # Глобальные переменные для цветового оформления
 RED="\033[31m"
 GREEN="\033[32m"
@@ -50,13 +56,11 @@ download_signature() {
 }
 
 # @brief Всегда проверяет доступность ключа на сервере и при необходимости импортирует его
-# target_directory - директория, где лежит SHA256SUMS.sign
 ensure_gpg_key() {
 	local target_directory="$1"
-	local key_identifier
 	local key_fingerprint
+	local key_identifier
 
-	# Извлекаем чистый отпечаток и ID ключа, удаляя лишние символы и скобки
 	key_fingerprint=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/issuer fpr/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
 	key_identifier=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/keyid/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
 
@@ -69,7 +73,9 @@ ensure_gpg_key() {
 	local server_is_available=false
 
 	echo "Проверка доступности ключа $key_fingerprint"
-	for server in "https://keys.openpgp.org" "https://keyserver.ubuntu.com"; do
+	
+	# ПЕРВЫЙ ПРОХОД: Проверяем доступность (список берется из единого массива GPG_SERVERS)
+	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "  -> Проверка на $server ... "
 		local http_status_code
 		http_status_code=$(curl --output /dev/null --silent --write-out "%{http_code}\n" "${server}/pks/lookup?op=index&search=0x${search_query}")
@@ -90,7 +96,9 @@ ensure_gpg_key() {
 	fi
 
 	echo " Ключ отсутствует локально. Запуск загрузки через curl:"
-	for server in "https://keys.openpgp.org" "https://keyserver.ubuntu.com"; do
+	
+	# ВТОРОЙ ПРОХОД: Скачивание (используется тот же самый массив GPG_SERVERS без дублирования URL-адресов)
+	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "   -> Загрузка с сервера: $server ... "
 		if curl --silent "${server}/pks/lookup?op=get&search=0x${search_query}" | gpg --import >/dev/null 2>&1; then
 			if gpg --list-keys "$key_fingerprint" >/dev/null 2>&1; then

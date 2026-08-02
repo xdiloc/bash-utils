@@ -22,37 +22,27 @@ create_iso_directory() {
 # @brief Универсальная функция для скачивания файлов через curl с выводом статуса
 # download_url - полный URL скачиваемого файла
 # output_path - путь для сохранения файла
+# curl_flags - дополнительные флаги для curl (например, --silent или --progress-bar)
 # description - описание загружаемого файла для вывода пользователю
 download_file() {
 	local download_url="$1"
 	local output_path="$2"
-	local description="$3"
-	echo -n "$description... "
-	if curl --silent --location --output "$output_path" "$download_url"; then
+	local curl_flags="$3"
+	local description="$4"
+	
+	if [ "$curl_flags" = "--progress-bar" ]; then
+		echo "$description"
+	else
+		echo -n "$description "
+	fi
+
+	if curl $curl_flags --location --output "$output_path" "$download_url"; then
 		echo -e "${GREEN}[OK]${RESET}"
 		return 0
 	else
 		echo -e "${RED}[FAIL]${RESET}"
 		return 1
 	fi
-}
-
-# @brief Скачивает файл контрольных сумм с перезаписью через curl
-# download_url - базовый URL репозитория
-# target_directory - целевая директория
-download_checksums() {
-	local download_url="$1"
-	local target_directory="$2"
-	download_file "${download_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "Загрузка файла контрольных сумм"
-}
-
-# @brief Скачивает файл цифровой подписи SHA256SUMS.sign с перезаписью через curl
-# download_url - базовый URL репозитория
-# target_directory - целевая директория
-download_signature() {
-	local download_url="$1"
-	local target_directory="$2"
-	download_file "${download_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "Загрузка файла цифровой подписи"
 }
 
 # @brief Всегда проверяет доступность ключа на сервере и при необходимости импортирует его
@@ -140,24 +130,6 @@ verify_checksum() {
 		return 0
 	else
 		echo -e "${RED}[FAIL]${RESET}"
-		return 1
-	fi
-}
-
-# @brief Скачивает ISO-образ с отображением прогресс-бара через curl
-# download_url - базовый URL репозитория
-# iso_filename - имя файла ISO-образа
-# target_directory - целевая директория
-download_iso() {
-	local download_url="$1"
-	local iso_filename="$2"
-	local target_directory="$3"
-	echo "Скачивание выбранного ISO-образа ($iso_filename):"
-	if curl --progress-bar --location --output "$target_directory/$iso_filename" "${download_url}/${iso_filename}"; then
-		echo -e "Статус загрузки: ${GREEN}[OK]${RESET}"
-		return 0
-	else
-		echo -e "Статус загрузки: ${RED}[FAIL]${RESET}"
 		return 1
 	fi
 }
@@ -268,8 +240,8 @@ select_and_download_iso() {
 
 	create_iso_directory "$target_directory"
 
-	download_checksums "$base_url" "$target_directory"
-	download_signature "$base_url" "$target_directory"
+	download_file "${base_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "--silent" "Загрузка файла контрольных сумм..."
+	download_file "${base_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "--silent" "Загрузка файла цифровой подписи..."
 
 	echo "Проверка наличия GPG-ключа..."
 	ensure_gpg_key "$target_directory"
@@ -288,7 +260,7 @@ select_and_download_iso() {
 		echo "Контрольная сумма не совпала. Перекачиваем файл..."
 	fi
 
-	if ! download_iso "$base_url" "$chosen_iso_image" "$target_directory"; then
+	if ! download_file "${base_url}/${chosen_iso_image}" "$target_directory/$chosen_iso_image" "--progress-bar" "Скачивание выбранного ISO-образа ($chosen_iso_image):"; then
 		return 1
 	fi
 

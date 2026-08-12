@@ -45,13 +45,16 @@ clean_logs() {
 	echo -e "\n=== log list ===";
 	check_sudo || return
 
-	local LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.old" )
+	local LOG_PATTERNS=( -name "*.0" -o -name "*.1" -o -name "*.xz" -o -name "*.gz" -o -name "*.old" -o -name "*.log.*" -o -name "*.[0-9]" )
 
 	echo -e "\nscan $HOME/";
 	find "$HOME/" -maxdepth 1 \( -name '.xsession-errors' -o -name '.xsession-errors.old' \)
 
 	echo -e "\nscan /var/log/";
-	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" -o -name "*.log" \)
+	echo -e "\nto delete";
+	sudo find /var/log/ -type f \( "${LOG_PATTERNS[@]}" \)
+	echo -e "\nto truncate";
+	sudo find /var/log/ -type f -name "*.log"
 
 	confirm_action || return
 

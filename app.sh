@@ -15,7 +15,7 @@ pause() {
 # @brief Проверяет, установлен ли пакет в системе
 # pkg - имя пакета
 is_installed() {
-	dpkg -s "$1" 2>/dev/null | grep -q "Status: install ok installed"
+	[ "$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null)" = "install ok installed" ]
 }
 
 # @brief Выводит в терминал детальный отчет о состоянии всех пакетов по категориям
@@ -26,9 +26,8 @@ show_system_status() {
 	echo ""
 
 	print_category_status() {
-		local cat_name=$1
-		shift
 		local -n pkgs_arr=$1
+		local cat_name=$2
 
 		echo "[$cat_name]"
 		for pkg in "${pkgs_arr[@]}"; do
@@ -41,11 +40,11 @@ show_system_status() {
 		echo ""
 	}
 
-	print_category_status "Консольные утилиты (NoGUI)" nogui_pkgs
-	print_category_status "Графические приложения (GUI)" gui_pkgs
-	print_category_status "Графика и мультимедиа" graphics_pkgs
-	print_category_status "Утилиты для дисков" disk_pkgs
-	print_category_status "Темы оформления" theme_pkgs
+	print_category_status nogui_pkgs "Консольные утилиты (NoGUI)"
+	print_category_status gui_pkgs "Графические приложения (GUI)"
+	print_category_status graphics_pkgs "Графика и мультимедиа"
+	print_category_status disk_pkgs "Утилиты для дисков"
+	print_category_status theme_pkgs "Темы оформления"
 
 	echo "=================================================="
 	pause
@@ -67,8 +66,18 @@ install_packages() {
 		fi
 	done
 
+	# Проверка наличия обязательной утилиты whiptail для работы интерфейса
 	if ! command -v whiptail &> /dev/null; then
-		sudo apt install whiptail
+		echo "Для работы графического интерфейса необходима утилита whiptail."
+		echo "Утилита whiptail не найдена, выполняется установка..."
+		sudo apt install -y whiptail
+	fi
+
+	# Повторная проверка после попытки установки
+	if ! command -v whiptail &> /dev/null; then
+		echo "Ошибка: не удалось установить whiptail. Продолжение работы невозможно."
+		pause
+		return 1
 	fi
 
 	local choices

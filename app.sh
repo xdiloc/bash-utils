@@ -21,6 +21,14 @@ is_installed() {
 	[ "$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null)" = "install ok installed" ]
 }
 
+# @brief Проверяет, существует ли пакет в репозиториях (без использования grep)
+# pkg - имя пакета
+exists_in_repo() {
+	local policy
+	policy=$(apt-cache --quiet=2 policy "$1")
+	[[ "$policy" == *"Candidate:"* && "$policy" != *"Candidate: (none)"* ]]
+}
+
 # @brief Выводит в терминал детальный отчет о состоянии всех пакетов по категориям
 show_system_status() {
 	echo "=================================================="
@@ -36,8 +44,10 @@ show_system_status() {
 		for pkg in "${pkgs_arr[@]}"; do
 			if is_installed "$pkg"; then
 				echo "  [✔] $pkg (установлено)"
-			else
+			elif exists_in_repo "$pkg"; then
 				echo "  [ ] $pkg (отсутствует)"
+			else
+				echo "  [✘] $pkg (нет в репозитории)"
 			fi
 		done
 		echo ""
@@ -67,8 +77,10 @@ install_packages() {
 	for pkg in "${pkgs_ref[@]}"; do
 		if is_installed "$pkg"; then
 			items+=("$pkg" "(установлено)" "ON")
+		elif exists_in_repo "$pkg"; then
+			items+=("$pkg" "(доступно)" "OFF")
 		else
-			items+=("$pkg" "" "OFF")
+			items+=("$pkg" "(нет в репозитории)" "OFF")
 		fi
 	done
 
@@ -103,7 +115,11 @@ install_packages() {
 	local to_install=()
 	for pkg in $choices; do
 		if ! is_installed "$pkg"; then
-			to_install+=("$pkg")
+			if exists_in_repo "$pkg"; then
+				to_install+=("$pkg")
+			else
+				echo "Предупреждение: пакет '$pkg' отсутствует в репозиториях и пропущен."
+			fi
 		fi
 	done
 

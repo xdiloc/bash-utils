@@ -1,10 +1,13 @@
 #!/bin/bash
 
 nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois wget ntfs-3g lm-sensors)
-gui_pkgs=(gtkhash sqlitebrowser qbittorrent ghex flameshot)
-graphics_pkgs=(webp webp-pixbuf-loader inkscape)
+gui_pkgs=(caja-actions caja-seahorse gtkhash sqlitebrowser qbittorrent ghex dconf-editor)
+graphics_pkgs=(flameshot webp webp-pixbuf-loader inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
-theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak)
+theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
+media_pkgs=(celluloid audacity carla obs-studio)
+hardware_pkgs=(cpu-x hardinfo mangohud lshw lshw-gtk)
+dev_pkgs=(git valac)
 
 # @brief Приостанавливает выполнение и ожидает нажатия клавиши Enter
 pause() {
@@ -45,6 +48,9 @@ show_system_status() {
 	print_category_status graphics_pkgs "Графика и мультимедиа"
 	print_category_status disk_pkgs "Утилиты для дисков"
 	print_category_status theme_pkgs "Темы оформления"
+	print_category_status media_pkgs "Аудио и видео"
+	print_category_status hardware_pkgs "Информация о железе"
+	print_category_status dev_pkgs "Разработка"
 
 	echo "=================================================="
 	pause
@@ -130,12 +136,15 @@ main_menu() {
 			1)
 				# Подменю выбора категории программ
 				SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
-					"Выберите категорию:" 16 60 5 \
+					"Выберите категорию:" 20 60 8 \
 					"nogui" "Консольные утилиты (NoGUI)" \
 					"gui" "Графические приложения (GUI)" \
 					"graphics" "Графика и мультимедиа" \
 					"disk" "Работа с дисками (Disk Utils)" \
-					"theme" "Темы оформления (Themes)" 3>&1 1>&2 2>&3)
+					"theme" "Темы оформления (Themes)" \
+					"media" "Аудио и видео (Media)" \
+					"hardware" "Информация о железе (Hardware)" \
+					"dev" "Разработка" 3>&1 1>&2 2>&3)
 
 				case $SUBCHOICE in
 					nogui)
@@ -152,6 +161,15 @@ main_menu() {
 						;;
 					theme)
 						install_packages theme_pkgs "Установка тем оформления"
+						;;
+					media)
+						install_packages media_pkgs "Установка аудио и видео программ"
+						;;
+					hardware)
+						install_packages hardware_pkgs "Установка утилит для железа"
+						;;
+					dev)
+						install_packages dev_pkgs "Установка средств разработки"
 						;;
 				esac
 				;;

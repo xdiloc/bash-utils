@@ -45,7 +45,7 @@ show_system_status() {
 			if is_installed "$pkg"; then
 				echo "  [✔] $pkg (установлено)"
 			elif exists_in_repo "$pkg"; then
-				echo "  [ ] $pkg (отсутствует)"
+				echo "  [ ] $pkg (доступно)"
 			else
 				echo "  [✘] $pkg (нет в репозитории)"
 			fi

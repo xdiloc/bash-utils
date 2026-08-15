@@ -6,8 +6,8 @@ graphics_pkgs=(flameshot webp webp-pixbuf-loader inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
 theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
 media_pkgs=(celluloid audacity carla obs-studio)
-hardware_pkgs=(cpu-x hardinfo mangohud lshw lshw-gtk)
-dev_pkgs=(git valac)
+hardware_pkgs=(cpu-x hardinfo mangohud vulkan-tools lshw lshw-gtk stress-ng)
+dev_pkgs=(git valac pluma-plugin-quickhighlight pluma-plugin-terminal)
 
 # Цвета для консоли
 RED='\033[0;31m'
@@ -36,29 +36,47 @@ exists_in_repo() {
 	[[ "$policy" == *"Candidate:"* && "$policy" != *"Candidate: (none)"* ]]
 }
 
+# @brief Проверяет наличие утилиты whiptail и при необходимости устанавливает её
+check_whiptail() {
+	if ! command -v whiptail &> /dev/null; then
+		echo -e "${YELLOW}Для работы графического интерфейса необходима утилита whiptail.${NC}"
+		echo -e "${YELLOW}Утилита whiptail не найдена, выполняется установка...${NC}"
+		sudo apt install -y whiptail
+	fi
+
+	if ! command -v whiptail &> /dev/null; then
+		echo -e "${RED}Ошибка: не удалось установить whiptail. Продолжение работы невозможно.${NC}"
+		pause
+		exit 1
+	fi
+}
+
+# @brief Выводит в терминал статус пакетов заданной категории
+# pkgs_arr - ссылка на массив пакетов
+# cat_name - название категории
+print_category_status() {
+	local -n pkgs_arr=$1
+	local cat_name=$2
+
+	echo -e "${BLUE}[$cat_name]${NC}"
+	for pkg in "${pkgs_arr[@]}"; do
+		if is_installed "$pkg"; then
+			echo -e "  ${GREEN}[✔]${NC} $pkg (установлено)"
+		elif exists_in_repo "$pkg"; then
+			echo -e "  ${YELLOW}[ ]${NC} $pkg (доступно)"
+		else
+			echo -e "  ${RED}[✘]${NC} $pkg (нет в репозитории)"
+		fi
+	done
+	echo ""
+}
+
 # @brief Выводит в терминал детальный отчет о состоянии всех пакетов по категориям
 show_system_status() {
 	echo -e "${BLUE}==================================================${NC}"
-	echo -e "${BLUE}       АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ         ${NC}"
+	echo -e "${BLUE}        АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ          ${NC}"
 	echo -e "${BLUE}==================================================${NC}"
 	echo ""
-
-	print_category_status() {
-		local -n pkgs_arr=$1
-		local cat_name=$2
-
-		echo -e "${BLUE}[$cat_name]${NC}"
-		for pkg in "${pkgs_arr[@]}"; do
-			if is_installed "$pkg"; then
-				echo -e "  ${GREEN}[✔]${NC} $pkg (установлено)"
-			elif exists_in_repo "$pkg"; then
-				echo -e "  ${YELLOW}[ ]${NC} $pkg (доступно)"
-			else
-				echo -e "  ${RED}[✘]${NC} $pkg (нет в репозитории)"
-			fi
-		done
-		echo ""
-	}
 
 	print_category_status nogui_pkgs "Консольные утилиты (NoGUI)"
 	print_category_status gui_pkgs "Графические приложения (GUI)"
@@ -80,6 +98,8 @@ install_packages() {
 	local -n pkgs_ref=$1
 	local title=$2
 
+	check_whiptail
+
 	local items=()
 	for pkg in "${pkgs_ref[@]}"; do
 		if is_installed "$pkg"; then
@@ -90,20 +110,6 @@ install_packages() {
 			items+=("$pkg" "(нет в репозитории)" "OFF")
 		fi
 	done
-
-	# Проверка наличия обязательной утилиты whiptail для работы интерфейса
-	if ! command -v whiptail &> /dev/null; then
-		echo -e "${YELLOW}Для работы графического интерфейса необходима утилита whiptail.${NC}"
-		echo -e "${YELLOW}Утилита whiptail не найдена, выполняется установка...${NC}"
-		sudo apt install -y whiptail
-	fi
-
-	# Повторная проверка после попытки установки
-	if ! command -v whiptail &> /dev/null; then
-		echo -e "${RED}Ошибка: не удалось установить whiptail. Продолжение работы невозможно.${NC}"
-		pause
-		return 1
-	fi
 
 	local choices
 	choices=$(whiptail --title "$title" --checklist \
@@ -146,6 +152,50 @@ install_packages() {
 	pause
 }
 
+# @brief Отображает подменю выбора категорий программ для установки
+install_menu() {
+	check_whiptail
+
+	local SUBCHOICE
+	SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
+		"Выберите категорию:" 20 60 8 \
+		"nogui" "Консольные утилиты (NoGUI)" \
+		"gui" "Графические приложения (GUI)" \
+		"graphics" "Графика и мультимедиа" \
+		"disk" "Работа с дисками (Disk Utils)" \
+		"theme" "Темы оформления (Themes)" \
+		"media" "Аудио и видео (Media)" \
+		"hardware" "Информация о железе (Hardware)" \
+		"dev" "Разработка" 3>&1 1>&2 2>&3)
+
+	case $SUBCHOICE in
+		nogui)
+			install_packages nogui_pkgs "Установка NoGUI программ"
+			;;
+		gui)
+			install_packages gui_pkgs "Установка GUI программ"
+			;;
+		graphics)
+			install_packages graphics_pkgs "Установка графических утилит"
+			;;
+		disk)
+			install_packages disk_pkgs "Утилиты для дисков"
+			;;
+		theme)
+			install_packages theme_pkgs "Установка тем оформления"
+			;;
+		media)
+			install_packages media_pkgs "Установка аудио и видео программ"
+			;;
+		hardware)
+			install_packages hardware_pkgs "Установка утилит для железа"
+			;;
+		dev)
+			install_packages dev_pkgs "Установка средств разработки"
+			;;
+	esac
+}
+
 # @brief Отображает главное меню управления скриптом
 main_menu() {
 	while true; do
@@ -157,44 +207,7 @@ main_menu() {
 
 		case $CHOICE in
 			1)
-				# Подменю выбора категории программ
-				SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
-					"Выберите категорию:" 20 60 8 \
-					"nogui" "Консольные утилиты (NoGUI)" \
-					"gui" "Графические приложения (GUI)" \
-					"graphics" "Графика и мультимедиа" \
-					"disk" "Работа с дисками (Disk Utils)" \
-					"theme" "Темы оформления (Themes)" \
-					"media" "Аудио и видео (Media)" \
-					"hardware" "Информация о железе (Hardware)" \
-					"dev" "Разработка" 3>&1 1>&2 2>&3)
-
-				case $SUBCHOICE in
-					nogui)
-						install_packages nogui_pkgs "Установка NoGUI программ"
-						;;
-					gui)
-						install_packages gui_pkgs "Установка GUI программ"
-						;;
-					graphics)
-						install_packages graphics_pkgs "Установка графических утилит"
-						;;
-					disk)
-						install_packages disk_pkgs "Утилиты для дисков"
-						;;
-					theme)
-						install_packages theme_pkgs "Установка тем оформления"
-						;;
-					media)
-						install_packages media_pkgs "Установка аудио и видео программ"
-						;;
-					hardware)
-						install_packages hardware_pkgs "Установка утилит для железа"
-						;;
-					dev)
-						install_packages dev_pkgs "Установка средств разработки"
-						;;
-				esac
+				install_menu
 				;;
 			2)
 				show_system_status

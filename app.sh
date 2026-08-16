@@ -5,7 +5,8 @@ gui_pkgs=(caja-actions caja-seahorse gtkhash sqlitebrowser qbittorrent ghex dcon
 graphics_pkgs=(flameshot fonts-noto-color-emoji webp webp-pixbuf-loader inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
 theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
-media_pkgs=(celluloid calf-plugins audacity carla obs-studio)
+media_pkgs=(celluloid audacity obs-studio)
+problem_pkgs=(carla calf-plugins)
 hardware_pkgs=(cpu-x hardinfo mangohud vulkan-tools lshw lshw-gtk stress-ng)
 dev_pkgs=(git make valac pluma-plugin-quickhighlight pluma-plugin-terminal)
 
@@ -74,7 +75,7 @@ print_category_status() {
 # @brief Выводит в терминал детальный отчет о состоянии всех пакетов по категориям
 show_system_status() {
 	echo -e "${BLUE}==================================================${NC}"
-	echo -e "${BLUE}        АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ          ${NC}"
+	echo -e "${BLUE}        АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ         ${NC}"
 	echo -e "${BLUE}==================================================${NC}"
 	echo ""
 
@@ -84,6 +85,7 @@ show_system_status() {
 	print_category_status disk_pkgs "Утилиты для дисков"
 	print_category_status theme_pkgs "Темы оформления"
 	print_category_status media_pkgs "Аудио и видео"
+	print_category_status problem_pkgs "Проблемные пакеты с багом"
 	print_category_status hardware_pkgs "Информация о железе"
 	print_category_status dev_pkgs "Разработка"
 
@@ -105,6 +107,7 @@ show_manual_untracked() {
 		"${disk_pkgs[@]}"
 		"${theme_pkgs[@]}"
 		"${media_pkgs[@]}"
+		"${problem_pkgs[@]}"
 		"${hardware_pkgs[@]}"
 		"${dev_pkgs[@]}"
 	)
@@ -185,13 +188,14 @@ install_menu() {
 
 	local SUBCHOICE
 	SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
-		"Выберите категорию:" 20 60 8 \
+		"Выберите категорию:" 20 60 9 \
 		"nogui" "Консольные утилиты (NoGUI)" \
 		"gui" "Графические приложения (GUI)" \
 		"graphics" "Графика и мультимедиа" \
 		"disk" "Работа с дисками (Disk Utils)" \
 		"theme" "Темы оформления (Themes)" \
 		"media" "Аудио и видео (Media)" \
+		"problem" "Проблемные пакеты с багом" \
 		"hardware" "Информация о железе (Hardware)" \
 		"dev" "Разработка" 3>&1 1>&2 2>&3)
 
@@ -213,6 +217,9 @@ install_menu() {
 			;;
 		media)
 			install_packages media_pkgs "Установка аудио и видео программ"
+			;;
+		problem)
+			install_packages problem_pkgs "Установка проблемных пакетов"
 			;;
 		hardware)
 			install_packages hardware_pkgs "Установка утилит для железа"

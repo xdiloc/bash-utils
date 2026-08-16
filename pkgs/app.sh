@@ -106,7 +106,6 @@ show_system_status() {
 	done
 
 	print_border
-
 	pause
 }
 
@@ -167,7 +166,10 @@ install_packages() {
 	fi
 
 	local to_install=()
-	for pkg in $choices; do
+	# Превращаем вывод whiptail в массив строк
+	eval "local raw_choices=($choices)" 2>/dev/null
+
+	for pkg in "${raw_choices[@]}"; do
 		if ! is_installed "$pkg"; then
 			if exists_in_repo "$pkg"; then
 				to_install+=("$pkg")

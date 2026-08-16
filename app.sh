@@ -1,12 +1,13 @@
 #!/bin/bash
 
 nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois curl wget ntfs-3g lm-sensors bash-completion)
-gui_pkgs=(caja-actions caja-seahorse gtkhash jstest-gtk sqlitebrowser qbittorrent ghex dconf-editor)
+gui_pkgs=(gtkhash jstest-gtk sqlitebrowser qbittorrent ghex dconf-editor)
 graphics_pkgs=(minder flameshot fonts-noto-color-emoji webp webp-pixbuf-loader gimp inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
-theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
+theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon papirus-icon-theme)
+mate_pkgs=(mate-themes mate-tweak mate-user-admin caja-actions caja-seahorse ayatana-settings lightdm-settings mozo system-config-printer)
 media_pkgs=(celluloid audacity obs-studio)
-problem_pkgs=(carla calf-plugins)
+problem_pkgs=(carla calf-plugins materia-gtk-theme)
 hardware_pkgs=(cpu-x hardinfo mangohud vulkan-tools lshw lshw-gtk stress-ng)
 dev_pkgs=(git make valac pluma-plugin-quickhighlight pluma-plugin-terminal)
 
@@ -105,6 +106,7 @@ show_system_status() {
 	print_category_status graphics_pkgs "Графика и мультимедиа"
 	print_category_status disk_pkgs "Утилиты для дисков"
 	print_category_status theme_pkgs "Темы оформления"
+	print_category_status mate_pkgs "Окружение MATE и утилиты"
 	print_category_status media_pkgs "Аудио и видео"
 	print_category_status problem_pkgs "Проблемные пакеты с багом"
 	print_category_status hardware_pkgs "Информация о железе"
@@ -126,6 +128,7 @@ show_manual_untracked() {
 		"${graphics_pkgs[@]}"
 		"${disk_pkgs[@]}"
 		"${theme_pkgs[@]}"
+		"${mate_pkgs[@]}"
 		"${media_pkgs[@]}"
 		"${problem_pkgs[@]}"
 		"${hardware_pkgs[@]}"
@@ -209,12 +212,13 @@ install_menu() {
 
 	local SUBCHOICE
 	SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
-		"Выберите категорию:" 20 60 9 \
+		"Выберите категорию:" 20 60 10 \
 		"nogui" "Консольные утилиты (NoGUI)" \
 		"gui" "Графические приложения (GUI)" \
 		"graphics" "Графика и мультимедиа" \
 		"disk" "Работа с дисками (Disk Utils)" \
 		"theme" "Темы оформления (Themes)" \
+		"mate" "Окружение MATE и утилиты" \
 		"media" "Аудио и видео (Media)" \
 		"problem" "Проблемные пакеты с багом" \
 		"hardware" "Информация о железе (Hardware)" \
@@ -235,6 +239,9 @@ install_menu() {
 			;;
 		theme)
 			install_packages theme_pkgs "Установка тем оформления"
+			;;
+		mate)
+			install_packages mate_pkgs "Установка утилит MATE"
 			;;
 		media)
 			install_packages media_pkgs "Установка аудио и видео программ"

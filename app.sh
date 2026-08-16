@@ -1,6 +1,6 @@
 #!/bin/bash
 
-nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois curl wget ntfs-3g lm-sensors bash-completion)
+nogui_pkgs=(iperf3 mtr-tiny nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois curl wget ntfs-3g lm-sensors bash-completion)
 gui_pkgs=(gtkhash jstest-gtk sqlitebrowser qbittorrent ghex dconf-editor)
 graphics_pkgs=(minder flameshot fonts-noto-color-emoji webp webp-pixbuf-loader gimp inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois curl wget ntfs-3g lm-sensors)
-gui_pkgs=(caja-actions caja-seahorse gtkhash sqlitebrowser qbittorrent ghex dconf-editor)
-graphics_pkgs=(flameshot fonts-noto-color-emoji webp webp-pixbuf-loader inkscape)
+nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois curl wget ntfs-3g lm-sensors bash-completion)
+gui_pkgs=(caja-actions caja-seahorse gtkhash jstest-gtk sqlitebrowser qbittorrent ghex dconf-editor)
+graphics_pkgs=(minder flameshot fonts-noto-color-emoji webp webp-pixbuf-loader gimp inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
 theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
 media_pkgs=(celluloid audacity obs-studio)
@@ -25,7 +25,7 @@ pause() {
 
 # @brief Выводит горизонтальную линию рамки
 print_border() {
-	local width=50
+	local width=46
 	local border
 	printf -v border '%*s' "$width" ""
 	border="${border// /=}"
@@ -36,7 +36,7 @@ print_border() {
 # text - текст заголовка
 print_header() {
 	local text="$1"
-	local width=50
+	local width=46
 	local len=${#text}
 	local left_pad=$(( (width - len) / 2 ))
 	[ $left_pad -lt 0 ] && left_pad=0

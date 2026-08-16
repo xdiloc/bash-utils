@@ -2,12 +2,12 @@
 
 nogui_pkgs=(nethogs net-tools tcpdump btop htop iotop micro bat tree cmatrix whois wget ntfs-3g lm-sensors)
 gui_pkgs=(caja-actions caja-seahorse gtkhash sqlitebrowser qbittorrent ghex dconf-editor)
-graphics_pkgs=(flameshot webp webp-pixbuf-loader inkscape)
+graphics_pkgs=(flameshot fonts-noto-color-emoji webp webp-pixbuf-loader inkscape)
 disk_pkgs=(smartmontools gparted gnome-disk-utility)
 theme_pkgs=(orchis-gtk-theme yaru-theme-gtk yaru-theme-icon mate-themes mate-tweak ayatana-settings)
-media_pkgs=(celluloid audacity carla obs-studio)
+media_pkgs=(celluloid calf-plugins audacity carla obs-studio)
 hardware_pkgs=(cpu-x hardinfo mangohud vulkan-tools lshw lshw-gtk stress-ng)
-dev_pkgs=(git valac pluma-plugin-quickhighlight pluma-plugin-terminal)
+dev_pkgs=(git make valac pluma-plugin-quickhighlight pluma-plugin-terminal)
 
 # Цвета для консоли
 RED='\033[0;31m'
@@ -32,7 +32,7 @@ is_installed() {
 # pkg - имя пакета
 exists_in_repo() {
 	local policy
-	policy=$(apt-cache --quiet=2 policy "$1")
+	policy=$(LC_ALL=C apt-cache --quiet=2 policy "$1")
 	[[ "$policy" == *"Candidate:"* && "$policy" != *"Candidate: (none)"* ]]
 }
 
@@ -87,6 +87,33 @@ show_system_status() {
 	print_category_status hardware_pkgs "Информация о железе"
 	print_category_status dev_pkgs "Разработка"
 
+	echo -e "${BLUE}==================================================${NC}"
+	pause
+}
+
+# @brief Выводит список пакетов из apt-mark showmanual за вычетом пакетов из списков установщика
+show_manual_untracked() {
+	echo -e "${BLUE}==================================================${NC}"
+	echo -e "${BLUE}      РУЧНО УСТАНОВЛЕННЫЕ ПАКЕТЫ (ВНЕ СПИСКОВ)       ${NC}"
+	echo -e "${BLUE}==================================================${NC}"
+	echo ""
+
+	local all_installer_pkgs=(
+		"${nogui_pkgs[@]}"
+		"${gui_pkgs[@]}"
+		"${graphics_pkgs[@]}"
+		"${disk_pkgs[@]}"
+		"${theme_pkgs[@]}"
+		"${media_pkgs[@]}"
+		"${hardware_pkgs[@]}"
+		"${dev_pkgs[@]}"
+	)
+
+	comm -23 \
+		<(apt-mark showmanual | sort) \
+		<(printf '%s\n' "${all_installer_pkgs[@]}" | sort -u)
+
+	echo ""
 	echo -e "${BLUE}==================================================${NC}"
 	pause
 }
@@ -200,10 +227,11 @@ install_menu() {
 main_menu() {
 	while true; do
 		CHOICE=$(whiptail --title "Менеджер установки программ" --menu \
-			"Выберите действие:" 16 60 3 \
+			"Выберите действие:" 17 60 4 \
 			"1" "Установка пакетов" \
 			"2" "Анализ состояния системы" \
-			"3" "Выход" 3>&1 1>&2 2>&3)
+			"3" "apt-mark showmanual (вне списков)" \
+			"4" "Выход" 3>&1 1>&2 2>&3)
 
 		case $CHOICE in
 			1)
@@ -213,6 +241,9 @@ main_menu() {
 				show_system_status
 				;;
 			3)
+				show_manual_untracked
+				;;
+			4)
 				exit 0
 				;;
 			*)

@@ -17,10 +17,28 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # Сброс цвета
 
-# @brief Приостанавливает выполнение и ожидает нажатия клавиши Enter
+# @brief Приостанавливает выполнение, выводит пустую строку перед и ожидает нажатия клавиши Enter
 pause() {
 	echo ""
 	read -p "Нажмите Enter для продолжения..."
+}
+
+# @brief Выводит центрированный заголовок в рамке из знаков равно
+# text - текст заголовка
+print_header() {
+	local text="$1"
+	local width=50
+	local len=${#text}
+	local left_pad=$(( (width - len) / 2 ))
+	[ $left_pad -lt 0 ] && left_pad=0
+
+	local border
+	printf -v border '%*s' "$width" ""
+	border="${border// /=}"
+
+	echo -e "${BLUE}$border${NC}"
+	printf "${BLUE}%*s%s${NC}\n" $left_pad "" "$text"
+	echo -e "${BLUE}$border${NC}"
 }
 
 # @brief Проверяет, установлен ли пакет в системе
@@ -74,9 +92,7 @@ print_category_status() {
 
 # @brief Выводит в терминал детальный отчет о состоянии всех пакетов по категориям
 show_system_status() {
-	echo -e "${BLUE}==================================================${NC}"
-	echo -e "${BLUE}        АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ         ${NC}"
-	echo -e "${BLUE}==================================================${NC}"
+	print_header "АНАЛИЗ СОСТОЯНИЯ ПАКЕТОВ В СИСТЕМЕ"
 	echo ""
 
 	print_category_status nogui_pkgs "Консольные утилиты (NoGUI)"
@@ -89,15 +105,18 @@ show_system_status() {
 	print_category_status hardware_pkgs "Информация о железе"
 	print_category_status dev_pkgs "Разработка"
 
-	echo -e "${BLUE}==================================================${NC}"
+	local width=50
+	local border
+	printf -v border '%*s' "$width" ""
+	border="${border// /=}"
+	echo -e "${BLUE}$border${NC}"
+
 	pause
 }
 
 # @brief Выводит список пакетов из apt-mark showmanual за вычетом пакетов из списков установщика
 show_manual_untracked() {
-	echo -e "${BLUE}==================================================${NC}"
-	echo -e "${BLUE}      РУЧНО УСТАНОВЛЕННЫЕ ПАКЕТЫ (ВНЕ СПИСКОВ)       ${NC}"
-	echo -e "${BLUE}==================================================${NC}"
+	print_header "РУЧНО УСТАНОВЛЕННЫЕ ПАКЕТЫ (ВНЕ СПИСКОВ)"
 	echo ""
 
 	local all_installer_pkgs=(
@@ -117,7 +136,12 @@ show_manual_untracked() {
 		<(printf '%s\n' "${all_installer_pkgs[@]}" | sort -u)
 
 	echo ""
-	echo -e "${BLUE}==================================================${NC}"
+	local width=50
+	local border
+	printf -v border '%*s' "$width" ""
+	border="${border// /=}"
+	echo -e "${BLUE}$border${NC}"
+
 	pause
 }
 

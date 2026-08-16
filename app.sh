@@ -23,6 +23,15 @@ pause() {
 	read -p "Нажмите Enter для продолжения..."
 }
 
+# @brief Выводит горизонтальную линию рамки
+print_border() {
+	local width=50
+	local border
+	printf -v border '%*s' "$width" ""
+	border="${border// /=}"
+	echo -e "${BLUE}$border${NC}"
+}
+
 # @brief Выводит центрированный заголовок в рамке из знаков равно
 # text - текст заголовка
 print_header() {
@@ -32,13 +41,9 @@ print_header() {
 	local left_pad=$(( (width - len) / 2 ))
 	[ $left_pad -lt 0 ] && left_pad=0
 
-	local border
-	printf -v border '%*s' "$width" ""
-	border="${border// /=}"
-
-	echo -e "${BLUE}$border${NC}"
+	print_border
 	printf "${BLUE}%*s%s${NC}\n" $left_pad "" "$text"
-	echo -e "${BLUE}$border${NC}"
+	print_border
 }
 
 # @brief Проверяет, установлен ли пакет в системе
@@ -105,11 +110,7 @@ show_system_status() {
 	print_category_status hardware_pkgs "Информация о железе"
 	print_category_status dev_pkgs "Разработка"
 
-	local width=50
-	local border
-	printf -v border '%*s' "$width" ""
-	border="${border// /=}"
-	echo -e "${BLUE}$border${NC}"
+	print_border
 
 	pause
 }
@@ -136,11 +137,7 @@ show_manual_untracked() {
 		<(printf '%s\n' "${all_installer_pkgs[@]}" | sort -u)
 
 	echo ""
-	local width=50
-	local border
-	printf -v border '%*s' "$width" ""
-	border="${border// /=}"
-	echo -e "${BLUE}$border${NC}"
+	print_border
 
 	pause
 }

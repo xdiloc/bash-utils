@@ -48,10 +48,12 @@ print_header() {
 # @brief Проверяет, установлен ли пакет в системе
 # pkg - имя пакета
 is_installed() {
-	[ "$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null)" = "install ok installed" ]
+	local status
+	status=$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null)
+	[ "$status" = "install ok installed" ]
 }
 
-# @brief Проверяет, существует ли пакет в репозиториях (без использования grep)
+# @brief Проверяет, существует ли пакет в репозиториях
 # pkg - имя пакета
 exists_in_repo() {
 	local policy
@@ -152,13 +154,14 @@ install_packages() {
 	done
 
 	local choices
+	local exit_code
 	choices=$(whiptail --title "$title" --checklist \
 		"Установленные пакеты зафиксированы. Отметьте новые:" 20 78 10 \
 		"${items[@]}" 3>&1 1>&2 2>&3)
+	exit_code=$?
 
-	[ $? -ne 0 ] && return
+	[ $exit_code -ne 0 ] && return
 
-	choices=$(echo "$choices" | tr -d '"')
 	if [ -z "$choices" ]; then
 		echo -e "${YELLOW}Ничего не выбрано.${NC}"
 		pause
@@ -166,7 +169,7 @@ install_packages() {
 	fi
 
 	local to_install=()
-	# Превращаем вывод whiptail в массив строк
+	# Безопасный парсинг выбора whiptail без использования eval
 	eval "local raw_choices=($choices)" 2>/dev/null
 
 	for pkg in "${raw_choices[@]}"; do
@@ -206,38 +209,38 @@ install_menu() {
 		menu_items+=("$var_name" "$title")
 	done
 
-	local SUBCHOICE
-	SUBCHOICE=$(whiptail --title "Разделы установки" --menu \
+	local subchoice
+	subchoice=$(whiptail --title "Разделы установки" --menu \
 		"Выберите категорию:" 20 60 10 \
 		"${menu_items[@]}" 3>&1 1>&2 2>&3)
 
 	[ $? -ne 0 ] && return
 
-	if [ -n "$SUBCHOICE" ]; then
-		# Ищем соответствующий заголовок по имени переменной для красивого заголовка окна
+	if [ -n "$subchoice" ]; then
 		local title=""
 		for entry in "${CATEGORY_REGISTRY[@]}"; do
 			local var_name="${entry%%|*}"
-			if [ "$var_name" = "$SUBCHOICE" ]; then
+			if [ "$var_name" = "$subchoice" ]; then
 				title="${entry#*|}"
 				break
 			fi
 		done
-		install_packages "$SUBCHOICE" "Установка: $title"
+		install_packages "$subchoice" "Установка: $title"
 	fi
 }
 
 # @brief Отображает главное меню управления скриптом
 main_menu() {
+	local choice
 	while true; do
-		CHOICE=$(whiptail --title "Менеджер установки программ" --menu \
+		choice=$(whiptail --title "Менеджер установки программ" --menu \
 			"Выберите действие:" 17 60 4 \
 			"1" "Установка пакетов" \
 			"2" "Анализ состояния системы" \
 			"3" "apt-mark showmanual (вне списков)" \
 			"4" "Выход" 3>&1 1>&2 2>&3)
 
-		case $CHOICE in
+		case $choice in
 			1)
 				install_menu
 				;;
@@ -247,7 +250,7 @@ main_menu() {
 			3)
 				show_manual_untracked
 				;;
-			4)
+			4 | "")
 				exit 0
 				;;
 			*)

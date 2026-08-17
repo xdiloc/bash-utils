@@ -49,7 +49,7 @@ print_header() {
 # pkg - имя пакета
 is_installed() {
 	local status
-	status=$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null)
+	status=$(dpkg-query -W -f='${Status}' -- "$1" 2>/dev/null)
 	[ "$status" = "install ok installed" ]
 }
 
@@ -57,7 +57,7 @@ is_installed() {
 # pkg - имя пакета
 exists_in_repo() {
 	local policy
-	policy=$(LC_ALL=C apt-cache --quiet=2 policy "$1")
+	policy=$(LC_ALL=C apt-cache --quiet=2 policy -- "$1")
 	[[ "$policy" == *"Candidate:"* && "$policy" != *"Candidate: (none)"* ]]
 }
 
@@ -194,7 +194,11 @@ install_packages() {
 	done
 	echo ""
 
-	sudo apt install "${to_install[@]}"
+	if sudo apt install "${to_install[@]}"; then
+		echo -e "${GREEN}Установка успешно завершена.${NC}"
+	else
+		echo -e "${RED}В процессе установки возникли ошибки.${NC}"
+	fi
 	pause
 }
 

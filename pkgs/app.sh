@@ -86,11 +86,11 @@ print_category_status() {
 	echo -e "${BLUE}[$cat_name]${NC}"
 	for pkg in "${pkgs_arr[@]}"; do
 		if is_installed "$pkg"; then
-			echo -e "	${GREEN}[✔]${NC} $pkg (установлено)"
+			echo -e "${GREEN}[✔]${NC} $pkg (установлено)"
 		elif exists_in_repo "$pkg"; then
-			echo -e "	${YELLOW}[ ]${NC} $pkg (доступно)"
+			echo -e "${YELLOW}[ ]${NC} $pkg (доступно)"
 		else
-			echo -e "	${RED}[✘]${NC} $pkg (нет в репозитории)"
+			echo -e "${RED}[✘]${NC} $pkg (нет в репозитории)"
 		fi
 	done
 	echo ""

@@ -86,11 +86,11 @@ print_category_status() {
 	echo -e "${BLUE}[$cat_name]${NC}"
 	for pkg in "${pkgs_arr[@]}"; do
 		if is_installed "$pkg"; then
-			echo -e "  ${GREEN}[✔]${NC} $pkg (установлено)"
+			echo -e "	${GREEN}[✔]${NC} $pkg (установлено)"
 		elif exists_in_repo "$pkg"; then
-			echo -e "  ${YELLOW}[ ]${NC} $pkg (доступно)"
+			echo -e "	${YELLOW}[ ]${NC} $pkg (доступно)"
 		else
-			echo -e "  ${RED}[✘]${NC} $pkg (нет в репозитории)"
+			echo -e "	${RED}[✘]${NC} $pkg (нет в репозитории)"
 		fi
 	done
 	echo ""
@@ -169,8 +169,8 @@ install_packages() {
 	fi
 
 	local to_install=()
-	# Безопасный парсинг выбора whiptail без использования eval
-	eval "local raw_choices=($choices)" 2>/dev/null
+	local raw_choices=()
+	read -ra raw_choices <<< "$(echo "$choices" | xargs)"
 
 	for pkg in "${raw_choices[@]}"; do
 		if ! is_installed "$pkg"; then

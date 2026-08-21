@@ -15,6 +15,17 @@ else
 	exit 1
 fi
 
+# @brief Определяет название операционной системы из /etc/os-release
+get_os_release() {
+	local os_name="Неизвестная ОС"
+	if [ -f /etc/os-release ]; then
+		. /etc/os-release
+		os_name="$PRETTY_NAME"
+	fi
+	echo -e "${GREEN}ОС:${NC} $os_name"
+	echo ""
+}
+
 # @brief Приостанавливает выполнение и ожидает нажатия любой клавиши
 pause() {
 	echo ""
@@ -262,4 +273,5 @@ main_menu() {
 	done
 }
 
+get_os_release
 main_menu

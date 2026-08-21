@@ -48,9 +48,7 @@ print_header() {
 # @brief Проверяет, установлен ли пакет в системе
 # pkg - имя пакета
 is_installed() {
-	local status
-	status=$(dpkg-query -W -f='${Status}' -- "$1" 2>/dev/null)
-	[ "$status" = "install ok installed" ]
+	dpkg-query -s "$1" >/dev/null 2>&1
 }
 
 # @brief Проверяет, существует ли пакет в репозиториях

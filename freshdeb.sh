@@ -41,24 +41,24 @@ download_file() {
 	fi
 }
 
-# @brief Всегда проверяет доступность ключа на сервере и при необходимости импортирует его
-ensure_gpg_key() {
+# @brief Извлекает отпечаток и идентификатор ключа из файла подписи
+# target_directory - директория с файлом подписи
+# out_fingerprint - переменная для записи отпечатка
+# out_identifier - переменная для записи идентификатора
+extract_key_info() {
 	local target_directory="$1"
-	local key_fingerprint
-	local key_identifier
+	local -n out_fingerprint="$2"
+	local -n out_identifier="$3"
 
-	key_fingerprint=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/issuer fpr/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
-	key_identifier=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/keyid/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
+	out_fingerprint=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/issuer fpr/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
+	out_identifier=$(gpg --list-packets "$target_directory/SHA256SUMS.sign" 2>/dev/null | awk '/keyid/{print $NF; exit}' | tr --complement --delete 'A-Fa-f0-9')
+}
 
-	if [ -z "$key_fingerprint" ]; then
-		echo "Ошибка: не удалось извлечь отпечаток ключа из SHA256SUMS.sign"
-		return 1
-	fi
-
-	local search_query="${key_fingerprint:-$key_identifier}"
+# @brief Проверяет доступность GPG-ключа на внешних серверах
+# search_query - поисковый запрос (отпечаток или идентификатор ключа)
+check_servers_for_key() {
+	local search_query="$1"
 	local server_is_available=false
-
-	echo "Проверка доступности ключа $key_fingerprint"
 
 	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "  -> Проверка на $server ... "
@@ -75,12 +75,14 @@ ensure_gpg_key() {
 	if [ "$server_is_available" = false ]; then
 		echo "Предупреждение: ключ не подтвержден ни на одном из серверов."
 	fi
+}
 
-	if gpg --list-keys "$key_fingerprint" >/dev/null 2>&1; then
-		return 0
-	fi
-
-	echo " Ключ отсутствует локально. Запуск загрузки через curl:"
+# @brief Скачивает и импортирует GPG-ключ с серверов
+# search_query - поисковый запрос (отпечаток или идентификатор ключа)
+# key_fingerprint - отпечаток ключа для финальной проверки
+import_gpg_key_from_servers() {
+	local search_query="$1"
+	local key_fingerprint="$2"
 
 	for server in "${GPG_SERVERS[@]}"; do
 		echo -n "   -> Загрузка с сервера: $server ... "
@@ -93,6 +95,32 @@ ensure_gpg_key() {
 		echo -e "${RED}[FAIL]${RESET}"
 	done
 	return 1
+}
+
+# @brief Всегда проверяет доступность ключа на сервере и при необходимости импортирует его
+ensure_gpg_key() {
+	local target_directory="$1"
+	local key_fingerprint
+	local key_identifier
+
+	extract_key_info "$target_directory" key_fingerprint key_identifier
+
+	if [ -z "$key_fingerprint" ]; then
+		echo "Ошибка: не удалось извлечь отпечаток ключа из SHA256SUMS.sign"
+		return 1
+	fi
+
+	local search_query="${key_fingerprint:-$key_identifier}"
+
+	echo "Проверка доступности ключа $key_fingerprint"
+	check_servers_for_key "$search_query"
+
+	if gpg --list-keys "$key_fingerprint" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	echo " Ключ отсутствует локально. Запуск загрузки через curl:"
+	import_gpg_key_from_servers "$search_query" "$key_fingerprint"
 }
 
 # @brief Проверяет GPG-подпись файла контрольных сумм
@@ -184,14 +212,12 @@ select_architecture() {
 	esac
 }
 
-# @brief Выводит список доступных ISO-файлов и обрабатывает выбор пользователя
-select_and_download_iso() {
-	local architecture_name=""
-	local base_url=""
-
-	if ! select_architecture architecture_name base_url; then
-		return 0
-	fi
+# @brief Получает список доступных ISO-файлов с сервера
+# base_url - базовый URL для загрузки
+# out_images_list - массив для записи найденных образов
+fetch_iso_images_list() {
+	local base_url="$1"
+	local -n out_images_list="$2"
 
 	local html_content
 	echo -n "Получение списка ISO-файлов с сервера... "
@@ -203,10 +229,69 @@ select_and_download_iso() {
 	fi
 	echo -e "${GREEN}[OK]${RESET}"
 
-	local iso_images_list=()
 	while IFS= read -r iso_image; do
-		[ -n "$iso_image" ] && iso_images_list+=("$iso_image")
+		[ -n "$iso_image" ] && out_images_list+=("$iso_image")
 	done < <(echo "$html_content" | grep --only-matching --perl-regexp 'class="indexcolname">\s*<a href="[^"]+\.iso">\K[^<]+' | awk '!seen[$0]++')
+}
+
+# @brief Загружает вспомогательные файлы (контрольные суммы и подпись)
+# base_url - базовый URL
+# target_directory - целевая директория
+download_verification_files() {
+	local base_url="$1"
+	local target_directory="$2"
+
+	download_file "${base_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "--progress-bar" "Загрузка файла контрольных сумм..."
+	download_file "${base_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "--progress-bar" "Загрузка файла цифровой подписи..."
+}
+
+# @brief Проверяет наличие локального образа, сверяет контрольную сумму и скачивает ISO при необходимости
+# base_url - базовый URL
+# chosen_iso_image - имя выбранного ISO-файла
+# target_directory - целевая директория
+# iso_file_path - полный путь к ISO-файлу
+handle_iso_download_and_verify() {
+	local base_url="$1"
+	local chosen_iso_image="$2"
+	local target_directory="$3"
+	local iso_file_path="$4"
+
+	echo "Проверка наличия и целостности локального образа..."
+	if [ ! -f "$iso_file_path" ]; then
+		echo "Локальный образ не найден."
+	else
+		if verify_checksum "$iso_file_path" "$target_directory"; then
+			echo "Образ уже существует и его контрольная сумма корректна."
+			return 0
+		fi
+		echo "Контрольная сумма не совпала. Перекачиваем файл..."
+	fi
+
+	if ! download_file "${base_url}/${chosen_iso_image}" "$target_directory/$chosen_iso_image" "--progress-bar" "Скачивание выбранного ISO-образа ($chosen_iso_image):"; then
+		return 1
+	fi
+
+	echo "Финальная проверка контрольной суммы:"
+	if verify_checksum "$iso_file_path" "$target_directory"; then
+		echo "Загрузка завершена успешно, контрольная сумма совпадает."
+	else
+		echo "Ошибка: контрольная сумма скачанного файла не совпадает!"
+	fi
+}
+
+# @brief Выводит список доступных ISO-файлов и обрабатывает выбор пользователя
+select_and_download_iso() {
+	local architecture_name=""
+	local base_url=""
+
+	if ! select_architecture architecture_name base_url; then
+		return 0
+	fi
+
+	local iso_images_list=()
+	if ! fetch_iso_images_list "$base_url" iso_images_list; then
+		return 1
+	fi
 
 	if [ ${#iso_images_list[@]} -eq 0 ]; then
 		echo " ISO-файлы не найдены."
@@ -234,9 +319,7 @@ select_and_download_iso() {
 	local iso_file_path="$target_directory/$chosen_iso_image"
 
 	create_iso_directory "$target_directory"
-
-	download_file "${base_url}/SHA256SUMS" "$target_directory/SHA256SUMS" "--progress-bar" "Загрузка файла контрольных сумм..."
-	download_file "${base_url}/SHA256SUMS.sign" "$target_directory/SHA256SUMS.sign" "--progress-bar" "Загрузка файла цифровой подписи..."
+	download_verification_files "$base_url" "$target_directory"
 
 	echo "Проверка наличия GPG-ключа..."
 	ensure_gpg_key "$target_directory"
@@ -244,27 +327,7 @@ select_and_download_iso() {
 	echo "Проверка GPG-подписи файла контрольных сумм:"
 	verify_signature "$target_directory"
 
-	echo "Проверка наличия и целостности локального образа..."
-	if [ ! -f "$iso_file_path" ]; then
-		echo "Локальный образ не найден."
-	else
-		if verify_checksum "$iso_file_path" "$target_directory"; then
-			echo "Образ уже существует и его контрольная сумма корректна."
-			return 0
-		fi
-		echo "Контрольная сумма не совпала. Перекачиваем файл..."
-	fi
-
-	if ! download_file "${base_url}/${chosen_iso_image}" "$target_directory/$chosen_iso_image" "--progress-bar" "Скачивание выбранного ISO-образа ($chosen_iso_image):"; then
-		return 1
-	fi
-
-	echo "Финальная проверка контрольной суммы:"
-	if verify_checksum "$iso_file_path" "$target_directory"; then
-		echo "Загрузка завершена успешно, контрольная сумма совпадает."
-	else
-		echo "Ошибка: контрольная сумма скачанного файла не совпадает!"
-	fi
+	handle_iso_download_and_verify "$base_url" "$chosen_iso_image" "$target_directory" "$iso_file_path"
 }
 
 # @brief Ожидание нажатия клавиши для продолжения

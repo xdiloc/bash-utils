@@ -32,7 +32,7 @@ download_file() {
 
 	echo "$description"
 
-	if curl $curl_flags --location --output "$output_path" "$download_url"; then
+	if curl "$curl_flags" --location --output "$output_path" "$download_url"; then
 		echo -e "Статус загрузки: ${GREEN}[OK]${RESET}"
 		return 0
 	else
@@ -100,11 +100,19 @@ ensure_gpg_key() {
 verify_signature() {
 	local target_directory="$1"
 	echo -n "  -> Проверка подписи SHA256SUMS.sign ... "
+
+	if [ ! -d "$target_directory" ]; then
+		echo -e "${RED}[FAIL]${RESET}"
+		echo "Директория не найдена: $target_directory"
+		return 1
+	fi
+
 	if (cd "$target_directory" && gpg --verify SHA256SUMS.sign SHA256SUMS >/dev/null 2>&1); then
 		echo -e "${GREEN}[OK]${RESET}"
 		return 0
 	else
 		echo -e "${RED}[FAIL]${RESET}"
+		echo "Ошибка: неверная GPG-подпись файла контрольных сумм"
 		return 1
 	fi
 }
@@ -119,11 +127,25 @@ verify_checksum() {
 	iso_base_name=$(basename "$iso_file_path")
 
 	echo -n "Файл $iso_base_name найден. Проверяем контрольную сумму... "
+
+	if [ ! -d "$target_directory" ]; then
+		echo -e "${RED}[FAIL]${RESET}"
+		echo "Директория не найдена: $target_directory"
+		return 1
+	fi
+
+	if ! (cd "$target_directory" && grep -q "$iso_base_name" SHA256SUMS); then
+		echo -e "${RED}[FAIL]${RESET}"
+		echo "Ошибка: образ отсутствует в файле контрольных сумм SHA256SUMS"
+		return 1
+	fi
+
 	if (cd "$target_directory" && grep "$iso_base_name" SHA256SUMS | sha256sum --check --ignore-missing --status); then
 		echo -e "${GREEN}[OK]${RESET}"
 		return 0
 	else
 		echo -e "${RED}[FAIL]${RESET}"
+		echo "Ошибка: контрольная сумма файла не совпадает"
 		return 1
 	fi
 }

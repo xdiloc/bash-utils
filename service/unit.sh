@@ -127,6 +127,17 @@ verify_unit() {
 	return 0
 }
 
+# @brief Просмотр содержимого unit-файла
+cat_unit() {
+	resolve_path
+	if [[ ! -f "$UNIT_PATH" ]]; then
+		echo -e "${RED}Ошибка: файл юнита не найден по пути $UNIT_PATH${NC}"
+		return
+	fi
+	echo -e "Содержимое файла ${ORANGE}$UNIT_PATH${NC}:"
+	sudo cat "$UNIT_PATH"
+}
+
 # @brief Редактирование unit-файла сервиса
 edit_unit() {
 	resolve_path
@@ -195,6 +206,46 @@ remove_unit() {
 	echo -e "${GREEN}Юнит $SERVICE успешно удален.${NC}"
 }
 
+# @brief Управление файлом юнита
+manage_unit_file() {
+	resolve_path
+	echo "Управление файлом юнита:"
+	echo "1) Посмотреть файл (cat)"
+	echo "2) Отредактировать (micro)"
+	echo "3) Проверить синтаксис (verify)"
+	echo "4) Создать бэкап (backup)"
+	echo "5) Удалить unit"
+	echo "0) Назад"
+	printf "\n"
+	read -p "Введите цифру: " sub_choice
+	printf "\n"
+
+	case $sub_choice in
+		1)
+			cat_unit
+			;;
+		2)
+			edit_unit
+			;;
+		3)
+			verify_unit
+			;;
+		4)
+			backup_unit
+			;;
+		5)
+			remove_unit
+			;;
+		0)
+			return
+			;;
+		*)
+			echo -e "${RED}Ошибка: неверный ввод${NC}"
+			;;
+	esac
+	printf "\n"
+}
+
 check_status
 printf "\n"
 echo "Выберите действие:"
@@ -202,11 +253,8 @@ echo "1) Запустить"
 echo "2) Остановить"
 echo "3) Перезапустить"
 echo "4) Смотреть логи"
-echo "5) Редактировать unit-файл"
-echo "6) Проверить конфигурацию"
-echo "7) Создать резервную копию"
-echo "8) Показать зависимости (dependencies)"
-echo "9) Удалить unit"
+echo "5) Управление файлом юнита"
+echo "6) Показать зависимости (dependencies)"
 echo "0) Выход"
 printf "\n"
 read -p "Введите цифру: " choice
@@ -226,19 +274,10 @@ case $choice in
 		view_logs
 		;;
 	5)
-		edit_unit
+		manage_unit_file
 		;;
 	6)
-		verify_unit
-		;;
-	7)
-		backup_unit
-		;;
-	8)
 		show_deps
-		;;
-	9)
-		remove_unit
 		;;
 	0)
 		exit 0

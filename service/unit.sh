@@ -29,6 +29,13 @@ check_status() {
 	else
 		echo -e "Статус сервиса ${ORANGE}$SERVICE${NC}: ${GRAY}отключен${NC}"
 	fi
+	local path
+	path=$(systemctl show -p FragmentPath --value "$SERVICE.service")
+	if [[ -n "$path" ]]; then
+		echo -e "Путь: ${GRAY}$path${NC}"
+	else
+		echo -e "Путь: ${GRAY}не создан${NC}"
+	fi
 }
 
 # @brief Проверка существования юнита в системе
@@ -166,6 +173,28 @@ show_deps() {
 	systemctl list-dependencies --no-pager "$SERVICE"
 }
 
+# @brief Удаление юнита (остановка, отключение, удаление файла и daemon-reload)
+remove_unit() {
+	resolve_path
+	if [[ ! -f "$UNIT_PATH" ]]; then
+		echo -e "${RED}Ошибка: файл юнита не найден по пути $UNIT_PATH${NC}"
+		return
+	fi
+
+	echo -e "${RED}Внимание! Сервис $SERVICE будет полностью удален (остановлен, отключен и файл будет стерт).${NC}"
+	read -p "Продолжить? [y/N]: " confirm
+	if [[ ! $confirm =~ ^[Yy]$ ]]; then
+		echo "Отменено."
+		return
+	fi
+
+	sudo systemctl stop "$SERVICE" 2>/dev/null
+	sudo systemctl disable "$SERVICE" 2>/dev/null
+	sudo rm -f "$UNIT_PATH"
+	sudo systemctl daemon-reload
+	echo -e "${GREEN}Юнит $SERVICE успешно удален.${NC}"
+}
+
 check_status
 printf "\n"
 echo "Выберите действие:"
@@ -177,6 +206,7 @@ echo "5) Редактировать unit-файл"
 echo "6) Проверить конфигурацию"
 echo "7) Создать резервную копию"
 echo "8) Показать зависимости (dependencies)"
+echo "9) Удалить unit"
 echo "0) Выход"
 printf "\n"
 read -p "Введите цифру: " choice
@@ -206,6 +236,9 @@ case $choice in
 		;;
 	8)
 		show_deps
+		;;
+	9)
+		remove_unit
 		;;
 	0)
 		exit 0

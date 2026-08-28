@@ -16,8 +16,11 @@ create_wrapper() {
 
 	# Проверка на существование файла
 	if [[ -f "$TARGET_FILE" ]]; then
-		echo "Ошибка: файл $TARGET_FILE уже существует."
-		exit 1
+		read -rp "Файл $TARGET_FILE уже существует. Перезаписать? (y/n): " choice
+		if [[ "$choice" != "y" && "$choice" != "Y" ]]; then
+			echo "Отменено."
+			exit 0
+		fi
 	fi
 
 	# Создание файла с содержимым
@@ -57,8 +60,12 @@ list_units() {
 }
 
 # Основная логика
-if [[ -n "$1" ]]; then
+if [[ "$1" == "list" ]]; then
+	list_units
+elif [[ -n "$1" ]]; then
 	create_wrapper "$1"
 else
-	list_units
+	echo "Использование:"
+	echo "  ./addunit.sh <имя_сервиса> - создать обертку для указанного сервиса"
+	echo "  ./addunit.sh list          - выбрать сервис из интерактивного списка"
 fi
